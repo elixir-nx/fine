@@ -17,7 +17,7 @@ jobs:
         with:
           otp-version: "27.2"
           elixir-version: "1.18.2"
-      - run: mix deps.get
+      - run: mix deps.get --check-locked
       - run: mix deps.compile
       - run: mix format --check-formatted
       - run: mix deps.unlock --check-unused
@@ -59,3 +59,10 @@ jobs:
         working-directory: test
       - run: mix test
         working-directory: test
+      - name: Test example/
+        run: |
+          mix deps.get --check-locked
+          mix format --check-formatted
+          mix deps.unlock --check-unused
+          mix test --warnings-as-errors
+        working-directory: example

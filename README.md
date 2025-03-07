@@ -110,6 +110,8 @@ FINE_NIF(add, 0);
 FINE_INIT("Elixir.MyLib.NIF");
 ```
 
+See [`example/`](https://github.com/elixir-nx/fine/tree/main/example) project.
+
 ## Encoding/Decoding
 
 Terms are automatically encoded and decoded at the NIF boundary based
