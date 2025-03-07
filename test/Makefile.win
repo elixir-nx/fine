@@ -1,16 +1,17 @@
 PRIV_DIR=$(MIX_APP_PATH)\priv
-NIF_PATH=$(PRIV_DIR)\libfine_test.dll
+NIF_PATH=$(PRIV_DIR)\libfinest.dll
+C_SRC=$(MAKEDIR)\c_src
 
-C_SRC=$(MAKEDIR)\c_src\fine_test
 CPPFLAGS=/LD /std:c++17 /W4 /O2 /EHsc
 CPPFLAGS=$(CPPFLAGS) /I"$(ERTS_INCLUDE_DIR)" /I"$(FINE_INCLUDE_DIR)"
-# We want to eliminate all warnings, so the end user doesn't see any
+# We want to eliminate all warnings, so the end user doesn't see any.
 CPPFLAGS=$(CPPFLAGS) /WX
 
 SOURCES=$(C_SRC)\*.cpp
+# We add dependency on Fine header file, since it can change as we test.
 FINE_HEADERS=$(FINE_INCLUDE_DIR)\*.hpp
 
-build: $(NIF_PATH)
+all: $(NIF_PATH)
 
 $(NIF_PATH): $(SOURCES) $(FINE_HEADERS)
 	@ if not exist "$(PRIV_DIR)" mkdir "$(PRIV_DIR)"

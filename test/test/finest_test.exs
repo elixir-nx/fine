@@ -1,7 +1,7 @@
-defmodule FineTestTest do
+defmodule FinestTest do
   use ExUnit.Case, async: true
 
-  alias FineTest.NIF
+  alias Finest.NIF
 
   test "add" do
     assert NIF.add(1, 2) == 3
@@ -172,7 +172,7 @@ defmodule FineTestTest do
     end
 
     test "struct" do
-      struct = %FineTest.Point{x: 1, y: 2}
+      struct = %Finest.Point{x: 1, y: 2}
       assert NIF.codec_struct(struct) == struct
 
       assert_raise ArgumentError, "decode failed, expected a struct", fn ->
@@ -183,13 +183,13 @@ defmodule FineTestTest do
         NIF.codec_struct(%{})
       end
 
-      assert_raise ArgumentError, "decode failed, expected a Elixir.FineTest.Point struct", fn ->
+      assert_raise ArgumentError, "decode failed, expected a Elixir.Finest.Point struct", fn ->
         NIF.codec_struct(~D"2000-01-01")
       end
     end
 
     test "exception struct" do
-      struct = %FineTest.Error{data: 1}
+      struct = %Finest.Error{data: 1}
       assert NIF.codec_struct_exception(struct) == struct
       assert is_exception(NIF.codec_struct_exception(struct))
 
@@ -240,7 +240,7 @@ defmodule FineTestTest do
     end
 
     test "raising an elixir exception" do
-      assert_raise FineTest.Error, "got error with data 10", fn ->
+      assert_raise Finest.Error, "got error with data 10", fn ->
         NIF.raise_elixir_exception()
       end
     end

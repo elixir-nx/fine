@@ -1,4 +1,4 @@
-defmodule FineTest.Error do
+defmodule Finest.Error do
   defexception [:data]
 
   @impl true

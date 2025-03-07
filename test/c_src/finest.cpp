@@ -6,11 +6,11 @@
 #include <stdexcept>
 #include <thread>
 
-namespace fine_test {
+namespace finest {
 
 namespace atoms {
-auto ElixirFineTestError = fine::Atom("Elixir.FineTest.Error");
-auto ElixirFineTestPoint = fine::Atom("Elixir.FineTest.Point");
+auto ElixirFinestError = fine::Atom("Elixir.Finest.Error");
+auto ElixirFinestPoint = fine::Atom("Elixir.Finest.Point");
 auto data = fine::Atom("data");
 auto destructor_with_env = fine::Atom("destructor_with_env");
 auto destructor_default = fine::Atom("destructor_default");
@@ -53,7 +53,7 @@ struct ExPoint {
   int64_t x;
   int64_t y;
 
-  static constexpr auto module = &atoms::ElixirFineTestPoint;
+  static constexpr auto module = &atoms::ElixirFinestPoint;
 
   static constexpr auto fields() {
     return std::make_tuple(std::make_tuple(&ExPoint::x, &atoms::x),
@@ -64,7 +64,7 @@ struct ExPoint {
 struct ExError {
   int64_t data;
 
-  static constexpr auto module = &atoms::ElixirFineTestError;
+  static constexpr auto module = &atoms::ElixirFinestError;
 
   static constexpr auto fields() {
     return std::make_tuple(std::make_tuple(&ExError::data, &atoms::data));
@@ -214,6 +214,6 @@ int64_t raise_erlang_error(ErlNifEnv *env) {
 }
 FINE_NIF(raise_erlang_error, 0);
 
-} // namespace fine_test
+} // namespace finest
 
-FINE_INIT("Elixir.FineTest.NIF");
+FINE_INIT("Elixir.Finest.NIF");

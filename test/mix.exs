@@ -1,9 +1,9 @@
-defmodule FineTest.MixProject do
+defmodule Finest.MixProject do
   use Mix.Project
 
   def project do
     [
-      app: :fine_test,
+      app: :finest,
       version: "0.1.0",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,

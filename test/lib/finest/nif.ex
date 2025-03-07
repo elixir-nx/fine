@@ -1,10 +1,10 @@
-defmodule FineTest.NIF do
+defmodule Finest.NIF do
   @moduledoc false
 
   @on_load :__on_load__
 
   def __on_load__ do
-    path = :filename.join(:code.priv_dir(:fine_test), ~c"libfine_test")
+    path = :filename.join(:code.priv_dir(:finest), ~c"libfinest")
 
     case :erlang.load_nif(path, 0) do
       :ok -> :ok
