@@ -32,6 +32,9 @@ NIFs in C++.
 
 - STL compatible Erlang-backend mutex and rwlock.
 
+- Compatible with STL container allocators and polymorphic memor
+  resources.
+
 ## Motivation
 
 Some projects make extensive use of NIFs, where using the C API results
@@ -583,11 +586,13 @@ std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> repeat_string(
 }
 ```
 
-Since `Decoder` has no special overloads for `std::pmr::polymorphic_allocator`,
-this means that attempting to use containers like `std::pmr::string`
-as NIF arguments will call the default constructor of `std::pmr::polymorphic_allocator`,
-which makes use of the `std::pmr::get_default_resource()` memory
-resource.
+We agree that writing `std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>`
+can be verbose.  For the sake of readability, `fine::std_string`, `fine::std_vector`,
+and `fine::std_map` are provided as templated type definitions injecting `fine::Allocator`
+to their associated STL container.
+
+All `Decoder`s for the supported STL classes will use `fine::memory_resource`
+when their `std::pmr::*` variants are requested to be decoded from terms.
 
 <!-- Docs -->
 

@@ -293,8 +293,8 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
 
   return std::nullopt;
 }
-FINE_NIF(shared_mutex_shared_lock_test, 0);
 
+FINE_NIF(shared_mutex_shared_lock_test, 0);
 std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> allocators(
     ErlNifEnv *,
     std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>
