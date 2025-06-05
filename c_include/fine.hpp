@@ -7,6 +7,7 @@
 #include <cstring>
 #include <map>
 #include <memory>
+#include <memory_resource>
 #include <optional>
 #include <stdexcept>
 #include <string>
@@ -317,6 +318,87 @@ inline fine::Term make_new_binary(ErlNifEnv *env, const char *data,
   memcpy(term_data, data, size);
   return term;
 }
+// Allocator
+
+namespace __private__ {
+inline class : public std::pmr::memory_resource {
+private:
+  // https://cplusplus.github.io/LWG/issue2843
+  //
+  // We assume the alignment is always `alignof(std::max_align_t)`, as
+  // guaranteed by `enif_alloc`, which is in line with C++ 17.
+
+  void *do_allocate(std::size_t bytes, std::size_t alignment) override {
+    (void)alignment;
+
+    void *ptr = enif_alloc(bytes);
+    if (ptr == nullptr) {
+      throw std::bad_alloc();
+    }
+    return ptr;
+  }
+
+  void do_deallocate(void *p, std::size_t bytes,
+                     std::size_t alignment) override {
+    (void)bytes;
+    (void)alignment;
+
+    enif_free(p);
+  }
+
+  bool
+  do_is_equal(const std::pmr::memory_resource &other) const noexcept override {
+    return this == std::addressof(other);
+  }
+} memory_resource;
+} // namespace __private__
+
+// A polymorphic memory resource pointer that allocates and frees
+// memory using Erlang's NIF memory management functions.
+inline std::pmr::memory_resource *memory_resource =
+    &__private__::memory_resource;
+
+// A STL-compatible allocator that allocates and frees memory using
+// Erlang's NIF memory management functions.
+template <typename T> struct Allocator {
+  using value_type = std::decay_t<T>;
+
+  Allocator() noexcept = default;
+
+  template <typename U> Allocator(const Allocator<U> &allocator) noexcept {}
+
+  value_type *allocate(std::size_t n, const void *hint = nullptr) {
+    (void)hint;
+
+    void *ptr = enif_alloc(sizeof(T) * n);
+    if (ptr == nullptr) {
+      throw std::bad_alloc();
+    }
+    return reinterpret_cast<value_type *>(ptr);
+  }
+
+  void deallocate(value_type *ptr, std::size_t n) {
+    (void)n;
+
+    enif_free(ptr);
+  }
+
+  template <typename U, typename... Args> void construct(U *p, Args &&...args) {
+    new (p) U(std::forward<Args>(args)...);
+  }
+
+  template <typename U> void destruct(U *p) { std::destroy_at(p); }
+
+  friend bool operator==(const Allocator &a, const Allocator &b) noexcept {
+    return true;
+  }
+
+  friend bool operator!=(const Allocator &a, const Allocator &b) noexcept {
+    return false;
+  }
+};
+
+template <> struct Allocator<void> {};
 
 // Decodes the given Erlang term as a value of the specified type.
 //
@@ -440,9 +522,12 @@ template <> struct Decoder<std::string_view> {
   }
 };
 
-template <> struct Decoder<std::string> {
-  static std::string decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    return std::string(fine::decode<std::string_view>(env, term));
+template <typename Alloc>
+struct Decoder<std::basic_string<char, std::char_traits<char>, Alloc>> {
+  static std::basic_string<char, std::char_traits<char>, Alloc>
+  decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    return std::basic_string<char, std::char_traits<char>, Alloc>(
+        fine::decode<std::string_view>(env, term));
   }
 };
 
@@ -529,15 +614,16 @@ private:
   }
 };
 
-template <typename T> struct Decoder<std::vector<T>> {
-  static std::vector<T> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+template <typename T, typename Alloc> struct Decoder<std::vector<T, Alloc>> {
+  static std::vector<T, Alloc> decode(ErlNifEnv *env,
+                                      const ERL_NIF_TERM &term) {
     unsigned int length;
 
     if (!enif_get_list_length(env, term, &length)) {
       throw std::invalid_argument("decode failed, expected a list");
     }
 
-    std::vector<T> vector;
+    std::vector<T, Alloc> vector;
     vector.reserve(length);
 
     auto list = term;
@@ -545,7 +631,7 @@ template <typename T> struct Decoder<std::vector<T>> {
     ERL_NIF_TERM head, tail;
     while (enif_get_list_cell(env, list, &head, &tail)) {
       auto elem = fine::decode<T>(env, head);
-      vector.push_back(elem);
+      vector.emplace_back(std::move(elem));
       list = tail;
     }
 
@@ -553,9 +639,11 @@ template <typename T> struct Decoder<std::vector<T>> {
   }
 };
 
-template <typename K, typename V> struct Decoder<std::map<K, V>> {
-  static std::map<K, V> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    auto map = std::map<K, V>();
+template <typename K, typename V, typename Compare, typename Alloc>
+struct Decoder<std::map<K, V, Compare, Alloc>> {
+  static std::map<K, V, Compare, Alloc> decode(ErlNifEnv *env,
+                                               const ERL_NIF_TERM &term) {
+    auto map = std::map<K, V, Compare, Alloc>();
 
     ERL_NIF_TERM key, value;
     ErlNifMapIterator iter;
@@ -713,8 +801,11 @@ template <> struct Encoder<std::string_view> {
   }
 };
 
-template <> struct Encoder<std::string> {
-  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::string &string) {
+template <typename Alloc>
+struct Encoder<std::basic_string<char, std::char_traits<char>, Alloc>> {
+  static ERL_NIF_TERM
+  encode(ErlNifEnv *env,
+         const std::basic_string<char, std::char_traits<char>, Alloc> &string) {
     return fine::encode<std::string_view>(env, string);
   }
 };
@@ -783,9 +874,10 @@ private:
   }
 };
 
-template <typename T> struct Encoder<std::vector<T>> {
-  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::vector<T> &vector) {
-    auto terms = std::vector<ERL_NIF_TERM>();
+template <typename T, typename Alloc> struct Encoder<std::vector<T, Alloc>> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env,
+                             const std::vector<T, Alloc> &vector) {
+    auto terms = std::vector<ERL_NIF_TERM, fine::Allocator<ERL_NIF_TERM>>();
     terms.reserve(vector.size());
 
     for (const auto &item : vector) {
@@ -797,10 +889,12 @@ template <typename T> struct Encoder<std::vector<T>> {
   }
 };
 
-template <typename K, typename V> struct Encoder<std::map<K, V>> {
-  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::map<K, V> &map) {
-    auto keys = std::vector<ERL_NIF_TERM>();
-    auto values = std::vector<ERL_NIF_TERM>();
+template <typename K, typename V, typename Compare, typename Alloc>
+struct Encoder<std::map<K, V, Compare, Alloc>> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env,
+                             const std::map<K, V, Compare, Alloc> &map) {
+    auto keys = std::vector<ERL_NIF_TERM, fine::Allocator<ERL_NIF_TERM>>();
+    auto values = std::vector<ERL_NIF_TERM, fine::Allocator<ERL_NIF_TERM>>();
 
     for (const auto &[key, value] : map) {
       keys.push_back(fine::encode(env, key));

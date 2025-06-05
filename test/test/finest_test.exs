@@ -307,4 +307,11 @@ defmodule FinestTest do
       NIF.shared_mutex_shared_lock_test()
     end
   end
+
+  describe "allocators" do
+    test "allocators" do
+      assert NIF.allocators("abc", 16) ==
+               ["abc"] |> Stream.cycle() |> Stream.take(16) |> Enum.to_list()
+    end
+  end
 end

@@ -295,6 +295,21 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
 }
 FINE_NIF(shared_mutex_shared_lock_test, 0);
 
+std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> allocators(
+    ErlNifEnv *,
+    std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>
+        string,
+    std::uint64_t repeat) {
+  std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> strings;
+
+  for (std::uint64_t i = 0; i != repeat; ++i) {
+    strings.emplace_back(std::pmr::string(string, fine::memory_resource));
+  }
+
+  return strings;
+}
+FINE_NIF(allocators, 0);
+
 } // namespace finest
 
 FINE_INIT("Elixir.Finest.NIF");
