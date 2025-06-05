@@ -287,4 +287,11 @@ defmodule FinestTest do
       end
     end
   end
+
+  describe "allocators" do
+    test "allocators" do
+      assert NIF.allocators("abc", 16) ==
+               ["abc"] |> Stream.cycle() |> Stream.take(16) |> Enum.to_list()
+    end
+  end
 end

@@ -50,5 +50,7 @@ defmodule Finest.NIF do
   def raise_elixir_exception(), do: err!()
   def raise_erlang_error(), do: err!()
 
+  def allocators(_string, _repeat), do: err!()
+
   defp err!(), do: :erlang.nif_error(:not_loaded)
 end
