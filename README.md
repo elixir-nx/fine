@@ -131,28 +131,28 @@ auto message = fine::decode<std::string>(env, term);
 
 Fine provides implementations for the following types:
 
-| Type                                 | Encoder | Decoder |
-| ------------------------------------ | ------- | ------- |
-| `fine::Term`                         | x       | x       |
-| `int64_t`                            | x       | x       |
-| `uint64_t`                           | x       | x       |
-| `double`                             | x       | x       |
-| `bool`                               | x       | x       |
-| `ErlNifPid`                          | x       | x       |
-| `ErlNifBinary`                       | x       | x       |
-| `std::string_view`                   | x       | x       |
-| `std::string`                        | x       | x       |
-| `fine::Atom`                         | x       | x       |
-| `std::nullopt_t`                     | x       |         |
-| `std::optional<T>`                   | x       | x       |
-| `std::variant<Args...>`              | x       | x       |
-| `std::tuple<Args...>`                | x       | x       |
-| `std::vector<T>`                     | x       | x       |
-| `std::map<K, V>`                     | x       | x       |
-| `fine::ResourcePtr<T>`               | x       | x       |
-| `T` with [struct metadata](#structs) | x       | x       |
-| `fine::Ok<Args...>`                  | x       |         |
-| `fine::Error<Args...>`               | x       |         |
+| Type                                                     | Encoder | Decoder |
+| -------------------------------------------------------- | ------- | ------- |
+| `fine::Term`                                             | x       | x       |
+| `int64_t`                                                | x       | x       |
+| `uint64_t`                                               | x       | x       |
+| `double`                                                 | x       | x       |
+| `bool`                                                   | x       | x       |
+| `ErlNifPid`                                              | x       | x       |
+| `ErlNifBinary`                                           | x       | x       |
+| `std::string_view`                                       | x       | x       |
+| `std::basic_string<char, std::char_traits<char>, Alloc>` | x       | x       |
+| `fine::Atom`                                             | x       | x       |
+| `std::nullopt_t`                                         | x       |         |
+| `std::optional<T>`                                       | x       | x       |
+| `std::variant<Args...>`                                  | x       | x       |
+| `std::tuple<Args...>`                                    | x       | x       |
+| `std::vector<T, Alloc>`                                  | x       | x       |
+| `std::map<K, V, Compare, Alloc>`                         | x       | x       |
+| `fine::ResourcePtr<T>`                                   | x       | x       |
+| `T` with [struct metadata](#structs)                     | x       | x       |
+| `fine::Ok<Args...>`                                      | x       |         |
+| `fine::Error<Args...>`                                   | x       |         |
 
 > #### ERL_NIF_TERM {: .warning}
 >
@@ -557,6 +557,37 @@ const char* my_object__name(struct my_object*);
 
 fine::SharedMutex my_object_rwlock("my_lib", "my_object", my_object__name(my_object));
 ```
+## Allocators
+
+When using NIFs, memory allocations are sometimes required, but Erlang
+has no knowledge of memory obtained through `new` or `malloc`. For
+Erlang to know about memory consumption in NIFs, `enif_alloc` and
+`enif_free` must be used.
+
+For compatibility with the STL, fine provides both a polymorphic 
+memory resource and a templated allocator:
+
+```c++
+std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> repeat_string(
+    ErlNifEnv *,
+    std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>
+        string,
+    std::uint64_t repeat) {
+  std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> strings;
+
+  for (std::uint64_t i = 0; i != repeat; ++i) {
+    strings.emplace_back(std::pmr::string(string, fine::memory_resource));
+  }
+
+  return strings;
+}
+```
+
+Since `Decoder` has no special overloads for `std::pmr::polymorphic_allocator`,
+this means that attempting to use containers like `std::pmr::string`
+as NIF arguments will call the default constructor of `std::pmr::polymorphic_allocator`,
+which makes use of the `std::pmr::get_default_resource()` memory
+resource.
 
 <!-- Docs -->
 
