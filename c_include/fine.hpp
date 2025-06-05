@@ -45,6 +45,99 @@ template <typename T> ERL_NIF_TERM encode(ErlNifEnv *env, const T &value);
 template <typename T, typename SFINAE = void> struct Decoder;
 template <typename T, typename SFINAE = void> struct Encoder;
 
+// Allocator
+
+namespace __private__ {
+class : public std::pmr::memory_resource {
+private:
+  // https://cplusplus.github.io/LWG/issue2843
+  //
+  // We assume the alignment is always `alignof(std::max_align_t)`, as
+  // guaranteed by `enif_alloc`, which is in line with C++ 17.
+
+  void *do_allocate(std::size_t bytes, std::size_t alignment) override {
+    (void)alignment;
+
+    void *ptr = enif_alloc(bytes);
+    if (ptr == nullptr) {
+      throw std::bad_alloc();
+    }
+    return ptr;
+  }
+
+  void do_deallocate(void *p, std::size_t bytes,
+                     std::size_t alignment) override {
+    (void)bytes;
+    (void)alignment;
+
+    enif_free(p);
+  }
+
+  bool
+  do_is_equal(const std::pmr::memory_resource &other) const noexcept override {
+    return this == std::addressof(other);
+  }
+} memory_resource;
+} // namespace __private__
+
+// A polymorphic memory resource pointer that allocates and frees
+// memory using Erlang's NIF memory management functions.
+inline std::pmr::memory_resource *memory_resource =
+    &__private__::memory_resource;
+
+// A STL-compatible allocator that allocates and frees memory using
+// Erlang's NIF memory management functions.
+template <typename T> struct Allocator {
+  using value_type = std::decay_t<T>;
+
+  Allocator() noexcept = default;
+
+  template <typename U> Allocator(const Allocator<U> &allocator) noexcept {}
+
+  value_type *allocate(std::size_t n, const void *hint = nullptr) {
+    (void)hint;
+
+    void *ptr = enif_alloc(sizeof(T) * n);
+    if (ptr == nullptr) {
+      throw std::bad_alloc();
+    }
+    return reinterpret_cast<value_type *>(ptr);
+  }
+
+  void deallocate(value_type *ptr, std::size_t n) {
+    (void)n;
+
+    enif_free(ptr);
+  }
+
+  template <typename U, typename... Args> void construct(U *p, Args &&...args) {
+    new (p) U(std::forward<Args>(args)...);
+  }
+
+  template <typename U> void destruct(U *p) { std::destroy_at(p); }
+
+  friend bool operator==(const Allocator &a, const Allocator &b) noexcept {
+    return true;
+  }
+
+  friend bool operator!=(const Allocator &a, const Allocator &b) noexcept {
+    return false;
+  }
+};
+
+template <> struct Allocator<void> {};
+
+// An STL string using Erlang's memory management functions.
+using std_string =
+    std::basic_string<char, std::char_traits<char>, Allocator<char>>;
+
+// An STL vector using Erlang's memory management functions.
+template <typename T> using std_vector = std::vector<T, Allocator<T>>;
+
+// An STL map using Erlang's memory management functions.
+template <typename K, typename V, typename Compare = std::less<K>>
+using std_map = std::map<K, V, Compare, Allocator<std::pair<const K, V>>>;
+
 namespace __private__ {
 std::vector<ErlNifFunc> &get_erl_nif_funcs();
 int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
@@ -307,8 +400,7 @@ Term make_resource_binary(ErlNifEnv *env, ResourcePtr<T> resource,
 //
 // This is useful when returning large binary from a NIF and the source
 // buffer does not outlive the return.
-inline fine::Term make_new_binary(ErlNifEnv *env, const char *data,
-                                  size_t size) {
+inline Term make_new_binary(ErlNifEnv *env, const char *data, size_t size) {
   ERL_NIF_TERM term;
   auto term_data = enif_make_new_binary(env, size, &term);
   if (term_data == nullptr) {
@@ -318,87 +410,6 @@ inline fine::Term make_new_binary(ErlNifEnv *env, const char *data,
   memcpy(term_data, data, size);
   return term;
 }
-// Allocator
-
-namespace __private__ {
-inline class : public std::pmr::memory_resource {
-private:
-  // https://cplusplus.github.io/LWG/issue2843
-  //
-  // We assume the alignment is always `alignof(std::max_align_t)`, as
-  // guaranteed by `enif_alloc`, which is in line with C++ 17.
-
-  void *do_allocate(std::size_t bytes, std::size_t alignment) override {
-    (void)alignment;
-
-    void *ptr = enif_alloc(bytes);
-    if (ptr == nullptr) {
-      throw std::bad_alloc();
-    }
-    return ptr;
-  }
-
-  void do_deallocate(void *p, std::size_t bytes,
-                     std::size_t alignment) override {
-    (void)bytes;
-    (void)alignment;
-
-    enif_free(p);
-  }
-
-  bool
-  do_is_equal(const std::pmr::memory_resource &other) const noexcept override {
-    return this == std::addressof(other);
-  }
-} memory_resource;
-} // namespace __private__
-
-// A polymorphic memory resource pointer that allocates and frees
-// memory using Erlang's NIF memory management functions.
-inline std::pmr::memory_resource *memory_resource =
-    &__private__::memory_resource;
-
-// A STL-compatible allocator that allocates and frees memory using
-// Erlang's NIF memory management functions.
-template <typename T> struct Allocator {
-  using value_type = std::decay_t<T>;
-
-  Allocator() noexcept = default;
-
-  template <typename U> Allocator(const Allocator<U> &allocator) noexcept {}
-
-  value_type *allocate(std::size_t n, const void *hint = nullptr) {
-    (void)hint;
-
-    void *ptr = enif_alloc(sizeof(T) * n);
-    if (ptr == nullptr) {
-      throw std::bad_alloc();
-    }
-    return reinterpret_cast<value_type *>(ptr);
-  }
-
-  void deallocate(value_type *ptr, std::size_t n) {
-    (void)n;
-
-    enif_free(ptr);
-  }
-
-  template <typename U, typename... Args> void construct(U *p, Args &&...args) {
-    new (p) U(std::forward<Args>(args)...);
-  }
-
-  template <typename U> void destruct(U *p) { std::destroy_at(p); }
-
-  friend bool operator==(const Allocator &a, const Allocator &b) noexcept {
-    return true;
-  }
-
-  friend bool operator!=(const Allocator &a, const Allocator &b) noexcept {
-    return false;
-  }
-};
-
-template <> struct Allocator<void> {};
 
 // Decodes the given Erlang term as a value of the specified type.
 //
@@ -524,10 +535,15 @@ template <> struct Decoder<std::string_view> {
 
 template <typename Alloc>
 struct Decoder<std::basic_string<char, std::char_traits<char>, Alloc>> {
-  static std::basic_string<char, std::char_traits<char>, Alloc>
-  decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    return std::basic_string<char, std::char_traits<char>, Alloc>(
-        fine::decode<std::string_view>(env, term));
+  using string = std::basic_string<char, std::char_traits<char>, Alloc>;
+
+  static string decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    if constexpr (std::is_same_v<Alloc,
+                                 std::pmr::polymorphic_allocator<char>>) {
+      return string(fine::decode<std::string_view>(env, term), memory_resource);
+    } else {
+      return string(fine::decode<std::string_view>(env, term));
+    }
   }
 };
 
@@ -623,7 +639,13 @@ template <typename T, typename Alloc> struct Decoder<std::vector<T, Alloc>> {
       throw std::invalid_argument("decode failed, expected a list");
     }
 
-    std::vector<T, Alloc> vector;
+    std::vector<T, Alloc> vector = []() -> std::vector<T, Alloc> {
+      if constexpr (std::is_same_v<Alloc, std::pmr::polymorphic_allocator<T>>) {
+        return {memory_resource};
+      } else {
+        return {};
+      }
+    }();
     vector.reserve(length);
 
     auto list = term;
@@ -643,7 +665,15 @@ template <typename K, typename V, typename Compare, typename Alloc>
 struct Decoder<std::map<K, V, Compare, Alloc>> {
   static std::map<K, V, Compare, Alloc> decode(ErlNifEnv *env,
                                                const ERL_NIF_TERM &term) {
-    auto map = std::map<K, V, Compare, Alloc>();
+    std::map<K, V, Compare, Alloc> map =
+        []() -> std::map<K, V, Compare, Alloc> {
+      if constexpr (std::is_same_v<Alloc, std::pmr::polymorphic_allocator<
+                                              std::pair<const K, V>>>) {
+        return {memory_resource};
+      } else {
+        return {};
+      }
+    }();
 
     ERL_NIF_TERM key, value;
     ErlNifMapIterator iter;
