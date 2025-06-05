@@ -67,6 +67,16 @@ defmodule FinestTest do
       end
     end
 
+    test "string_view" do
+      assert NIF.codec_string_view("hello world") == "hello world"
+      assert NIF.codec_string_view(<<0, 1, 2>>) == <<0, 1, 2>>
+      assert NIF.codec_string_view(<<>>) == <<>>
+
+      assert_raise ArgumentError, "decode failed, expected a binary", fn ->
+        NIF.codec_string(1)
+      end
+    end
+
     test "string" do
       assert NIF.codec_string("hello world") == "hello world"
       assert NIF.codec_string(<<0, 1, 2>>) == <<0, 1, 2>>

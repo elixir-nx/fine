@@ -102,6 +102,11 @@ ErlNifBinary codec_binary(ErlNifEnv *, ErlNifBinary term) {
 }
 FINE_NIF(codec_binary, 0);
 
+std::string_view codec_string_view(ErlNifEnv *, std::string_view term) {
+  return term;
+}
+FINE_NIF(codec_string_view, 0);
+
 std::string codec_string(ErlNifEnv *, std::string term) { return term; }
 FINE_NIF(codec_string, 0);
 
