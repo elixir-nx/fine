@@ -181,7 +181,8 @@ Fine provides implementations for the following types:
 > circumvented.
 >
 > Similarly, when returning large binaries, prefer creating the term
-> with `enif_make_new_binary` and returning `fine::Term`, as shown below.
+> with `enif_make_new_binary` and returning `fine::Term`, instead of
+> allocating an intermediary `std::string`, as shown below.
 >
 > ```c++
 > fine::Term read_data(ErlNifEnv *env) {
@@ -196,9 +197,12 @@ Fine provides implementations for the following types:
 > }
 > ```
 >
-> You can also return `ErlNifBinary` allocated with `enif_alloc_binary`,
-> but keep in mind that returning the binary converts it to term, which
-> in turn transfers the ownership, so you should not use that `ErlNifBinary`
+> You can also return `std::string_view`, as long as the data it points
+> to outlives the return.
+>
+> In case you return `ErlNifBinary` allocated with `enif_alloc_binary`,
+> keep in mind that returning the binary converts it to term, which in
+> turn transfers the ownership, so you should not use that `ErlNifBinary`
 > after the NIF finishes.
 
 You can extend encoding/decoding to work on custom types by defining
