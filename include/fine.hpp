@@ -17,7 +17,13 @@
 
 #include <erl_nif.h>
 
-#if __cplusplus < 201703L
+#if defined(_MSVC_LANG)
+#define CPP_VERSION _MSVC_LANG
+#else
+#define CPP_VERSION __cplusplus
+#endif
+
+#if CPP_VERSION < 201703L
 #error "elixir-nx/fine only supports C++ 17 and later"
 #endif
 
