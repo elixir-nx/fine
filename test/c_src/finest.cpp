@@ -20,8 +20,9 @@ auto y = fine::Atom("y");
 
 struct TestResource {
   ErlNifPid pid;
+  std::string binary;
 
-  TestResource(ErlNifPid pid) : pid(pid) {}
+  TestResource(ErlNifPid pid) : pid(pid), binary("hello world") {}
 
   void destructor(ErlNifEnv *env) {
     auto msg_env = enif_alloc_env();
@@ -185,6 +186,13 @@ ErlNifPid resource_get(ErlNifEnv *, fine::ResourcePtr<TestResource> resource) {
   return resource->pid;
 }
 FINE_NIF(resource_get, 0);
+
+fine::Term resource_binary(ErlNifEnv *env,
+                           fine::ResourcePtr<TestResource> resource) {
+  return fine::make_resource_binary(env, resource, resource->binary.data(),
+                                    resource->binary.size());
+}
+FINE_NIF(resource_binary, 0);
 
 fine::Term make_new_binary(ErlNifEnv *env) {
   const char *buffer = "hello world";

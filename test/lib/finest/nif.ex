@@ -40,6 +40,7 @@ defmodule Finest.NIF do
 
   def resource_create(_pid), do: err!()
   def resource_get(_resource), do: err!()
+  def resource_binary(_resource), do: err!()
 
   def make_new_binary(), do: err!()
 

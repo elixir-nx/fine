@@ -232,6 +232,26 @@ defmodule FinestTest do
       assert_receive :destructor_with_env
       assert_receive :destructor_default
     end
+
+    test "resource binary keeps reference to the resource" do
+      _ =
+        (fn ->
+           binary = NIF.resource_binary(NIF.resource_create(self()))
+           :erlang.garbage_collect(self())
+
+           # We have reference to the binary, so the resource should
+           # stay alive.
+           refute_receive :destructor_default, 10
+
+           byte_size(binary)
+         end).()
+
+      # We no longer have reference to the binary, so GC should destroy
+      # the resource.
+      :erlang.garbage_collect(self())
+
+      assert_receive :destructor_default
+    end
   end
 
   describe "make_new_binary" do
