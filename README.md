@@ -170,10 +170,10 @@ Fine provides implementations for the following types:
 > talking about UTF-8 encoded strings or arbitrary binaries.
 >
 > However, when dealing with large binaries, it is preferable for the
-> NIF to accept `ErlNifBinary` or `std::string_view` as arguments and
+> NIF to accept `std::string_view` (or `ErlNifBinary`) as arguments and
 > deal with the raw data explicitly, which is zero-copy. That said,
-> keep in mind that `ErlNifBinary` and `std::string_view` are
-> read-only and only valid during the NIF call lifetime.
+> keep in mind that those objects are read-only pointers to the data
+> and they are valid only during the NIF call lifetime.
 >
 > Since Elixir binaries are not zero-terminated, the use of
 > `std::string` is recommended when interfacing with C APIs, although
