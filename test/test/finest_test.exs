@@ -234,6 +234,12 @@ defmodule FinestTest do
     end
   end
 
+  describe "make_new_binary" do
+    test "creates a binary term copying the original buffer" do
+      assert NIF.make_new_binary() == "hello world"
+    end
+  end
+
   describe "exceptions" do
     test "standard exceptions" do
       assert_raise RuntimeError, "runtime error reason", fn ->

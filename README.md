@@ -181,7 +181,7 @@ Fine provides implementations for the following types:
 > circumvented.
 >
 > Similarly, when returning large binaries, prefer creating the term
-> with `enif_make_new_binary` and returning `fine::Term`, instead of
+> with `fine::make_new_binary` and returning `fine::Term`, instead of
 > allocating an intermediary `std::string`, as shown below.
 >
 > ```c++
@@ -189,11 +189,7 @@ Fine provides implementations for the following types:
 >   const char *buffer = ...;
 >   uint64_t size = ...;
 >
->   ERL_NIF_TERM binary_term;
->   auto binary_data = enif_make_new_binary(env, size, &binary_term);
->   memcpy(binary_data, buffer, size);
->
->   return binary_term;
+>   return fine::make_new_binary(env, buffer, size);
 > }
 > ```
 >
