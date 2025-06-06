@@ -234,6 +234,18 @@ int64_t raise_erlang_error(ErlNifEnv *env) {
 }
 FINE_NIF(raise_erlang_error, 0);
 
+fine::std_vector<std::pmr::string>
+allocators(ErlNifEnv *, fine::std_string string, std::uint64_t repeat) {
+  fine::std_vector<std::pmr::string> strings;
+
+  for (std::uint64_t i = 0; i != repeat; ++i) {
+    strings.emplace_back(std::pmr::string(string, fine::memory_resource));
+  }
+
+  return strings;
+}
+FINE_NIF(allocators, 0);
+
 } // namespace finest
 
 FINE_INIT("Elixir.Finest.NIF");

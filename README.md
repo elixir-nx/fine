@@ -30,6 +30,9 @@ NIFs in C++.
 
 - Creating all static atoms at load time.
 
+- Compatible with STL container allocators and polymorphic memor
+  resources.
+
 ## Motivation
 
 Some projects make extensive use of NIFs, where using the C API results
@@ -129,28 +132,28 @@ auto message = fine::decode<std::string>(env, term);
 
 Fine provides implementations for the following types:
 
-| Type                                 | Encoder | Decoder |
-| ------------------------------------ | ------- | ------- |
-| `fine::Term`                         | x       | x       |
-| `int64_t`                            | x       | x       |
-| `uint64_t`                           | x       | x       |
-| `double`                             | x       | x       |
-| `bool`                               | x       | x       |
-| `ErlNifPid`                          | x       | x       |
-| `ErlNifBinary`                       | x       | x       |
-| `std::string_view`                   | x       | x       |
-| `std::string`                        | x       | x       |
-| `fine::Atom`                         | x       | x       |
-| `std::nullopt_t`                     | x       |         |
-| `std::optional<T>`                   | x       | x       |
-| `std::variant<Args...>`              | x       | x       |
-| `std::tuple<Args...>`                | x       | x       |
-| `std::vector<T>`                     | x       | x       |
-| `std::map<K, V>`                     | x       | x       |
-| `fine::ResourcePtr<T>`               | x       | x       |
-| `T` with [struct metadata](#structs) | x       | x       |
-| `fine::Ok<Args...>`                  | x       |         |
-| `fine::Error<Args...>`               | x       |         |
+| Type                                                     | Encoder | Decoder |
+| -------------------------------------------------------- | ------- | ------- |
+| `fine::Term`                                             | x       | x       |
+| `int64_t`                                                | x       | x       |
+| `uint64_t`                                               | x       | x       |
+| `double`                                                 | x       | x       |
+| `bool`                                                   | x       | x       |
+| `ErlNifPid`                                              | x       | x       |
+| `ErlNifBinary`                                           | x       | x       |
+| `std::string_view`                                       | x       | x       |
+| `std::basic_string<char, std::char_traits<char>, Alloc>` | x       | x       |
+| `fine::Atom`                                             | x       | x       |
+| `std::nullopt_t`                                         | x       |         |
+| `std::optional<T>`                                       | x       | x       |
+| `std::variant<Args...>`                                  | x       | x       |
+| `std::tuple<Args...>`                                    | x       | x       |
+| `std::vector<T, Alloc>`                                  | x       | x       |
+| `std::map<K, V, Compare, Alloc>`                         | x       | x       |
+| `fine::ResourcePtr<T>`                                   | x       | x       |
+| `T` with [struct metadata](#structs)                     | x       | x       |
+| `fine::Ok<Args...>`                                      | x       |         |
+| `fine::Error<Args...>`                                   | x       |         |
 
 > #### ERL_NIF_TERM {: .warning}
 >
@@ -499,6 +502,40 @@ std::variant<fine::Ok<int64_t>, fine::Error<std::string>> find_meaning(ErlNifEnv
 
 Note that if you use a particular union frequently, it may be convenient
 to define a type alias with `using`/`typedef` to keep signatures brief.
+
+## Allocators
+
+When using NIFs, memory allocations are sometimes required, but Erlang
+has no knowledge of memory obtained through `new` or `malloc`. For
+Erlang to know about memory consumption in NIFs, `enif_alloc` and
+`enif_free` must be used.
+
+For compatibility with the STL, fine provides both a polymorphic 
+memory resource and a templated allocator:
+
+```c++
+std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> repeat_string(
+    ErlNifEnv *,
+    std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>
+        string,
+    std::uint64_t repeat) {
+  std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> strings;
+
+  for (std::uint64_t i = 0; i != repeat; ++i) {
+    strings.emplace_back(std::pmr::string(string, fine::memory_resource));
+  }
+
+  return strings;
+}
+```
+
+We agree that writing `std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>`
+can be verbose.  For the sake of readability, `fine::std_string`, `fine::std_vector`,
+and `fine::std_map` are provided as templated type definitions injecting `fine::Allocator`
+to their associated STL container.
+
+All `Decoder`s for the supported STL classes will use `fine::memory_resource`
+when their `std::pmr::*` variants are requested to be decoded from terms.
 
 <!-- Docs -->
 
