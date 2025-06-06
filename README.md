@@ -138,6 +138,7 @@ Fine provides implementations for the following types:
 | `bool`                               | x       | x       |
 | `ErlNifPid`                          | x       | x       |
 | `ErlNifBinary`                       | x       | x       |
+| `std::string_view`                   | x       | x       |
 | `std::string`                        | x       | x       |
 | `fine::Atom`                         | x       | x       |
 | `std::nullopt_t`                     | x       |         |
@@ -169,9 +170,15 @@ Fine provides implementations for the following types:
 > talking about UTF-8 encoded strings or arbitrary binaries.
 >
 > However, when dealing with large binaries, it is preferable for the
-> NIF to accept `ErlNifBinary` as arguments and deal with the raw data
-> explicitly, which is zero-copy. That said, keep in mind that `ErlNifBinary`
-> is read-only and only valid during the NIF call lifetime.
+> NIF to accept `std::string_view` (or `ErlNifBinary`) as arguments and
+> deal with the raw data explicitly, which is zero-copy. That said,
+> keep in mind that those objects are read-only pointers to the data
+> and they are valid only during the NIF call lifetime.
+>
+> Since Elixir binaries are not zero-terminated, the use of
+> `std::string` is recommended when interfacing with C APIs, although
+> this will require an additional allocation, which cannot be
+> circumvented.
 >
 > Similarly, when returning large binaries, prefer creating the term
 > with `enif_make_new_binary` and returning `fine::Term`, as shown below.

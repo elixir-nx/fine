@@ -21,6 +21,7 @@ defmodule Finest.NIF do
   def codec_bool(_term), do: err!()
   def codec_pid(_term), do: err!()
   def codec_binary(_term), do: err!()
+  def codec_string_view(_term), do: err!()
   def codec_string(_term), do: err!()
   def codec_atom(_term), do: err!()
   def codec_nullopt(), do: err!()

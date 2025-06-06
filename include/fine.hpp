@@ -5,15 +5,27 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <erl_nif.h>
 #include <map>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <variant>
 #include <vector>
+
+#include <erl_nif.h>
+
+#if defined(_MSVC_LANG)
+#define CPP_VERSION _MSVC_LANG
+#else
+#define CPP_VERSION __cplusplus
+#endif
+
+#if CPP_VERSION < 201703L
+#error "elixir-nx/fine only supports C++ 17 and later"
+#endif
 
 #if ERL_NIF_MAJOR_VERSION > 2 ||                                               \
     (ERL_NIF_MAJOR_VERSION == 2 && ERL_NIF_MINOR_VERSION >= 17)
@@ -396,11 +408,17 @@ template <> struct Decoder<ErlNifBinary> {
   }
 };
 
+template <> struct Decoder<std::string_view> {
+  static std::string_view decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    auto binary = fine::decode<ErlNifBinary>(env, term);
+    return std::string_view(reinterpret_cast<const char *>(binary.data),
+                            binary.size);
+  }
+};
+
 template <> struct Decoder<std::string> {
   static std::string decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    auto binary = fine::decode<ErlNifBinary>(env, term);
-    return std::string(
-        {reinterpret_cast<const char *>(binary.data), binary.size});
+    return std::string(fine::decode<std::string_view>(env, term));
   }
 };
 
@@ -659,8 +677,8 @@ template <> struct Encoder<ErlNifBinary> {
   }
 };
 
-template <> struct Encoder<std::string> {
-  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::string &string) {
+template <> struct Encoder<std::string_view> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::string_view &string) {
     ERL_NIF_TERM term;
     auto data = enif_make_new_binary(env, string.length(), &term);
     if (data == nullptr) {
@@ -668,6 +686,12 @@ template <> struct Encoder<std::string> {
     }
     memcpy(data, string.data(), string.length());
     return term;
+  }
+};
+
+template <> struct Encoder<std::string> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::string &string) {
+    return fine::encode<std::string_view>(env, string);
   }
 };
 
