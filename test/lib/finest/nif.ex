@@ -41,6 +41,8 @@ defmodule Finest.NIF do
   def resource_create(_pid), do: err!()
   def resource_get(_resource), do: err!()
 
+  def make_new_binary(), do: err!()
+
   def throw_runtime_error(), do: err!()
   def throw_invalid_argument(), do: err!()
   def throw_other_exception(), do: err!()

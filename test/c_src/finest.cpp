@@ -186,6 +186,13 @@ ErlNifPid resource_get(ErlNifEnv *, fine::ResourcePtr<TestResource> resource) {
 }
 FINE_NIF(resource_get, 0);
 
+fine::Term make_new_binary(ErlNifEnv *env) {
+  const char *buffer = "hello world";
+  size_t size = 11;
+  return fine::make_new_binary(env, buffer, size);
+}
+FINE_NIF(make_new_binary, 0);
+
 int64_t throw_runtime_error(ErlNifEnv *) {
   throw std::runtime_error("runtime error reason");
 }

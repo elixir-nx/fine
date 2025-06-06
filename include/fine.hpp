@@ -300,6 +300,22 @@ Term make_resource_binary(ErlNifEnv *env, ResourcePtr<T> resource,
       env, reinterpret_cast<void *>(resource.get()), data, size);
 }
 
+// Creates a binary term copying data from the given buffer.
+//
+// This is useful when returning large binary from a NIF and the source
+// buffer does not outlive the return.
+inline fine::Term make_new_binary(ErlNifEnv *env, const char *data,
+                                  size_t size) {
+  ERL_NIF_TERM term;
+  auto term_data = enif_make_new_binary(env, size, &term);
+  if (term_data == nullptr) {
+    throw std::runtime_error(
+        "make_new_binary failed, failed to allocate new binary");
+  }
+  memcpy(term_data, data, size);
+  return term;
+}
+
 // Decodes the given Erlang term as a value of the specified type.
 //
 // The given type must have a specialized Decoder<T> implementation.
