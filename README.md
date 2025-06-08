@@ -134,28 +134,28 @@ auto message = fine::decode<std::string>(env, term);
 
 Fine provides implementations for the following types:
 
-| Type                                                     | Encoder | Decoder |
-| -------------------------------------------------------- | ------- | ------- |
-| `fine::Term`                                             | x       | x       |
-| `int64_t`                                                | x       | x       |
-| `uint64_t`                                               | x       | x       |
-| `double`                                                 | x       | x       |
-| `bool`                                                   | x       | x       |
-| `ErlNifPid`                                              | x       | x       |
-| `ErlNifBinary`                                           | x       | x       |
-| `std::string_view`                                       | x       | x       |
-| `std::basic_string<char, std::char_traits<char>, Alloc>` | x       | x       |
-| `fine::Atom`                                             | x       | x       |
-| `std::nullopt_t`                                         | x       |         |
-| `std::optional<T>`                                       | x       | x       |
-| `std::variant<Args...>`                                  | x       | x       |
-| `std::tuple<Args...>`                                    | x       | x       |
-| `std::vector<T, Alloc>`                                  | x       | x       |
-| `std::map<K, V, Compare, Alloc>`                         | x       | x       |
-| `fine::ResourcePtr<T>`                                   | x       | x       |
-| `T` with [struct metadata](#structs)                     | x       | x       |
-| `fine::Ok<Args...>`                                      | x       |         |
-| `fine::Error<Args...>`                                   | x       |         |
+| C++ Type                             | Elixir Type                 | Encoder | Decoder |
+| ------------------------------------ | --------------------------- | ------- | ------- |
+| `fine::Term`                         | `term`                      | x       | x       |
+| `int64_t`                            | `integer`                   | x       | x       |
+| `uint64_t`                           | `non_neg_integer`           | x       | x       |
+| `double`                             | `float`                     | x       | x       |
+| `bool`                               | `boolean`                   | x       | x       |
+| `ErlNifPid`                          | `pid`                       | x       | x       |
+| `ErlNifBinary`                       | `binary`                    | x       | x       |
+| `std::string_view`                   | `String.t()`                | x       | x       |
+| `std::string`                        | `String.t()`                | x       | x       |
+| `fine::Atom`                         | `atom`                      | x       | x       |
+| `std::nullopt_t`                     | `nil`                       | x       |         |
+| `std::optional<T>`                   | `T \| nil`                  | x       | x       |
+| `std::variant<Args...>`              | `Args[0] \| ... \| Args[N]` | x       | x       |
+| `std::tuple<Args...>`                | `tuple`                     | x       | x       |
+| `std::vector<T>`                     | `list(T)`                   | x       | x       |
+| `std::map<K, V>`                     | `%{K => V}`                 | x       | x       |
+| `fine::ResourcePtr<T>`               | `reference`                 | x       | x       |
+| `T` with [struct metadata](#structs) | `%T{...}`                   | x       | x       |
+| `fine::Ok<Args...>`                  | `{:ok, Args...}`            | x       |         |
+| `fine::Error<Args...>`               | `{:error, Args...}`         | x       |         |
 
 > #### ERL_NIF_TERM {: .warning}
 >

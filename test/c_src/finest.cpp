@@ -1,5 +1,6 @@
 #include <cstring>
 #include <exception>
+#include <memory_resource>
 #include <optional>
 #include <stdexcept>
 #include <thread>
