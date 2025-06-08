@@ -50,5 +50,11 @@ defmodule Finest.NIF do
   def raise_elixir_exception(), do: err!()
   def raise_erlang_error(), do: err!()
 
+  def mutex_unique_lock_test(), do: err!()
+  def mutex_scoped_lock_test(), do: err!()
+
+  def rwlock_unique_lock_test(), do: err!()
+  def rwlock_shared_lock_test(), do: err!()
+
   defp err!(), do: :erlang.nif_error(:not_loaded)
 end

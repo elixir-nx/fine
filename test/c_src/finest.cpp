@@ -1,10 +1,13 @@
 #include <cstring>
-#include <erl_nif.h>
 #include <exception>
-#include <fine.hpp>
 #include <optional>
 #include <stdexcept>
 #include <thread>
+
+#include <erl_nif.h>
+#include <fine.hpp>
+#include <fine/mutex.hpp>
+#include <fine/rwlock.hpp>
 
 namespace finest {
 
@@ -233,6 +236,65 @@ int64_t raise_erlang_error(ErlNifEnv *env) {
 #endif
 }
 FINE_NIF(raise_erlang_error, 0);
+
+std::nullopt_t mutex_unique_lock_test(ErlNifEnv *) {
+  fine::Mutex mutex;
+  mutex.lock();
+
+  std::thread thread([&mutex] { auto lock = std::unique_lock(mutex); });
+
+  mutex.unlock();
+  thread.join();
+
+  return std::nullopt;
+}
+FINE_NIF(mutex_unique_lock_test, 0);
+
+std::nullopt_t mutex_scoped_lock_test(ErlNifEnv *) {
+  fine::Mutex mutex1;
+  fine::Mutex mutex2("finest", "mutex_scoped_lock_test", "mutex2");
+
+  mutex1.lock();
+  mutex2.lock();
+
+  std::thread thread(
+      [&mutex1, &mutex2] { auto lock = std::scoped_lock(mutex1, mutex2); });
+
+  mutex2.unlock();
+  mutex1.unlock();
+  thread.join();
+
+  return std::nullopt;
+}
+FINE_NIF(mutex_scoped_lock_test, 0);
+
+std::nullopt_t rwlock_unique_lock_test(ErlNifEnv *) {
+  fine::RwLock rwlock;
+
+  rwlock.lock_shared();
+
+  std::thread thread([&rwlock] { auto lock = std::unique_lock(rwlock); });
+
+  rwlock.unlock_shared();
+  thread.join();
+
+  return std::nullopt;
+}
+FINE_NIF(rwlock_unique_lock_test, 0);
+
+std::nullopt_t rwlock_shared_lock_test(ErlNifEnv *) {
+  fine::RwLock rwlock("finest", "rwlock_shared_lock_test", "rwlock");
+
+  rwlock.lock();
+
+  std::thread thread([&rwlock] { auto lock = std::shared_lock(rwlock); });
+
+  rwlock.unlock();
+  thread.join();
+
+  return std::nullopt;
+}
+FINE_NIF(rwlock_shared_lock_test, 0);
 
 } // namespace finest
 

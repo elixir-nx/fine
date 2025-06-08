@@ -30,6 +30,8 @@ NIFs in C++.
 
 - Creating all static atoms at load time.
 
+- STL compatible Erlang-backend mutex and rwlock.
+
 ## Motivation
 
 Some projects make extensive use of NIFs, where using the C API results
@@ -499,6 +501,75 @@ std::variant<fine::Ok<int64_t>, fine::Error<std::string>> find_meaning(ErlNifEnv
 
 Note that if you use a particular union frequently, it may be convenient
 to define a type alias with `using`/`typedef` to keep signatures brief.
+
+## Synchronization
+
+Erlang is a multi-process environment where each process is guaranteed to be
+isolated from other processes.  When dealing with NIFs, the same C++ function
+can be called from multiple Erlang processes simultaneously, leading to race
+conditions. While C++ provides synchronization mechanisms, these are unknown to
+Erlang and cannot take advantage of tools like *lock checker* or *lcnt*.
+
+Fine provides analogues to `std::mutex` and `std::shared_mutex`, respectively
+called `fine::Mutex` and `fine::RwLock`:
+
+```c++
+#include <fine/mutex.hpp>
+#include <fine/rwlock.hpp>
+
+fine::Mutex mutex;
+
+mutex.lock();
+mutex.unlock();
+bool locked = mutex.try_lock();
+
+{
+  auto lock = std::unique_lock(mutex);
+}
+
+fine::RwLock rwlock;
+
+rwlock.lock();
+rwlock.unlock();
+bool locked = rwlock.try_lock();
+
+rwlock.lock_shared();
+rwlock.unlock_shared();
+bool locked = rwlock.try_lock_shared();
+
+{
+  auto lock = std::shared_lock(rwlock);
+}
+
+{
+  auto lock = std::unique_lock(rwlock);
+}
+```
+
+While `fine::Mutex` and `fine::RwLock` can be created using their default
+constructors, users might want to explore their constructors accepting debug
+information:
+```c++
+fine::Mutex mutex("app_name", "type_name");
+fine::Mutex mutex("app_name", "type_name", "instance_name");
+fine::RwLock rwlock("app_name", "type_name");
+fine::RwLock rwlock("app_name", "type_name", "instance_name");
+```
+
+Conventionnally, `"app_name"` is a string representation of the application
+associated with the loaded NIFs, `"type_name"` is the type wrapped by the
+synchronization primitive, and `"instance_name"` identifies and instance of the
+type indivually.  The `"instance_name"` is normally omitted if
+the synchronization primitive is global.
+
+Say we were making a wrapper for *libmy_lib* in a app named *my_lib*, we
+would create a read/write lock for an object of type *my_object* like so:
+```c++
+struct my_object;
+const char* my_object__name(struct my_object*);
+
+fine::RwLock my_object_rwlock("my_lib", "my_object", my_object__name(my_object));
+```
 
 <!-- Docs -->
 
