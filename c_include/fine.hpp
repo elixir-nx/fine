@@ -7,7 +7,6 @@
 #include <cstring>
 #include <map>
 #include <memory>
-#include <memory_resource>
 #include <optional>
 #include <stdexcept>
 #include <string>
