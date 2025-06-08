@@ -76,6 +76,80 @@ struct ExError {
   static constexpr auto is_exception = true;
 };
 
+namespace __private__ {
+class : public std::pmr::memory_resource {
+private:
+  // https://cplusplus.github.io/LWG/issue2843
+  //
+  // We assume the alignment is always `alignof(std::max_align_t)`, as
+  // guaranteed by `enif_alloc`, which is in line with C++ 17.
+
+  void *do_allocate(std::size_t bytes, std::size_t alignment) override {
+    (void)alignment;
+
+    void *ptr = enif_alloc(bytes);
+    if (ptr == nullptr) {
+      throw std::bad_alloc();
+    }
+    return ptr;
+  }
+
+  void do_deallocate(void *p, std::size_t bytes,
+                     std::size_t alignment) override {
+    (void)bytes;
+    (void)alignment;
+
+    enif_free(p);
+  }
+
+  bool
+  do_is_equal(const std::pmr::memory_resource &other) const noexcept override {
+    return this == std::addressof(other);
+  }
+} memory_resource;
+} // namespace __private__
+
+inline std::pmr::memory_resource *memory_resource =
+    &__private__::memory_resource;
+
+template <typename T> struct Allocator {
+  using value_type = std::decay_t<T>;
+
+  Allocator() noexcept = default;
+
+  template <typename U> Allocator(const Allocator<U> &) noexcept {}
+
+  value_type *allocate(std::size_t n, const void *hint = nullptr) {
+    (void)hint;
+
+    void *ptr = enif_alloc(sizeof(T) * n);
+    if (ptr == nullptr) {
+      throw std::bad_alloc();
+    }
+    return reinterpret_cast<value_type *>(ptr);
+  }
+
+  void deallocate(value_type *ptr, std::size_t n) {
+    (void)n;
+
+    enif_free(ptr);
+  }
+
+  template <typename U, typename... Args> void construct(U *p, Args &&...args) {
+    new (p) U(std::forward<Args>(args)...);
+  }
+
+  template <typename U> void destruct(U *p) { std::destroy_at(p); }
+
+  friend bool operator==(const Allocator &, const Allocator &) noexcept {
+    return true;
+  }
+
+  friend bool operator!=(const Allocator &, const Allocator &) noexcept {
+    return false;
+  }
+};
+
 int64_t add(ErlNifEnv *, int64_t x, int64_t y) { return x + y; }
 FINE_NIF(add, 0);
 
@@ -293,17 +367,16 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
 
   return std::nullopt;
 }
-
 FINE_NIF(shared_mutex_shared_lock_test, 0);
-std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> allocators(
+
+std::vector<std::pmr::string, Allocator<std::pmr::string>> allocators(
     ErlNifEnv *,
-    std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>
-        string,
+    std::basic_string<char, std::char_traits<char>, Allocator<char>> string,
     std::uint64_t repeat) {
-  std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> strings;
+  std::vector<std::pmr::string, Allocator<std::pmr::string>> strings;
 
   for (std::uint64_t i = 0; i != repeat; ++i) {
-    strings.emplace_back(std::pmr::string(string, fine::memory_resource));
+    strings.emplace_back(std::pmr::string(string, memory_resource));
   }
 
   return strings;

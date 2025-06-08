@@ -562,37 +562,32 @@ fine::SharedMutex my_object_rwlock("my_lib", "my_object", my_object__name(my_obj
 ```
 ## Allocators
 
-When using NIFs, memory allocations are sometimes required, but Erlang
-has no knowledge of memory obtained through `new` or `malloc`. For
-Erlang to know about memory consumption in NIFs, `enif_alloc` and
-`enif_free` must be used.
-
-For compatibility with the STL, fine provides both a polymorphic 
-memory resource and a templated allocator:
+For compatibility with the STL, fine supports stateless allocators when
+decoding values, while also supporting stateful allocators when encoding
+values. The following shows how a custom `MyAllocator` allocator and
+`my_memory_resource` memory resource can be used in conjunction with fine:
 
 ```c++
-std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> repeat_string(
+template<typename T>
+struct MyAllocator { ... };
+
+std::pmr::memory_resource* my_memory_resource = ...;
+
+std::vector<std::pmr::string, MyAllocator<std::pmr::string>> duplicate(
     ErlNifEnv *,
-    std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>
+    std::basic_string<char, std::char_traits<char>, MyAllocator<char>>
         string,
     std::uint64_t repeat) {
-  std::vector<std::pmr::string, fine::Allocator<std::pmr::string>> strings;
+  std::vector<std::pmr::string, MyAllocator<std::pmr::string>> strings;
 
   for (std::uint64_t i = 0; i != repeat; ++i) {
-    strings.emplace_back(std::pmr::string(string, fine::memory_resource));
+    strings.emplace_back(std::pmr::string(string, my_memory_resource));
   }
 
   return strings;
 }
+FINE_NIF(duplicate, 0);
 ```
-
-We agree that writing `std::basic_string<char, std::char_traits<char>, fine::Allocator<char>>`
-can be verbose.  For the sake of readability, `fine::std_string`, `fine::std_vector`,
-and `fine::std_map` are provided as templated type definitions injecting `fine::Allocator`
-to their associated STL container.
-
-All `Decoder`s for the supported STL classes will use `fine::memory_resource`
-when their `std::pmr::*` variants are requested to be decoded from terms.
 
 <!-- Docs -->
 
