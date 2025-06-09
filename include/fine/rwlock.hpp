@@ -20,7 +20,7 @@ namespace fine {
 class RwLock final {
 public:
   // Creates an unnamed RwLock.
-  inline RwLock() noexcept : m_handle(enif_rwlock_create(nullptr)) {
+  inline RwLock() : m_handle(enif_rwlock_create(nullptr)) {
     if (!m_handle) {
       throw std::runtime_error("failed to create rwlock");
     }

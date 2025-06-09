@@ -21,7 +21,7 @@ namespace fine {
 class Mutex final {
 public:
   // Creates an unnamed Mutex.
-  inline Mutex() noexcept : m_handle(enif_mutex_create(nullptr)) {
+  inline Mutex() : m_handle(enif_mutex_create(nullptr)) {
     if (!m_handle) {
       throw std::runtime_error("failed to create mutex");
     }
