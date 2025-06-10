@@ -167,9 +167,15 @@ template <typename T> struct ResourceWrapper {
   union {
     struct {
       bool initialized;
-    };
+    } data;
     std::max_align_t _unused;
-  };
+  } payload;
+
+  bool initialized() const { return payload.data.initialized; }
+
+  void set_initialized(bool initialized) {
+    payload.data.initialized = initialized;
+  }
 
   const T *resource() const { return reinterpret_cast<const T *>(this + 1); }
 
@@ -183,7 +189,7 @@ template <typename T> struct ResourceWrapper {
   static void dtor(ErlNifEnv *env, void *ptr) {
     auto resource_wrapper = reinterpret_cast<ResourceWrapper<T> *>(ptr);
 
-    if (resource_wrapper->initialized) {
+    if (resource_wrapper->initialized()) {
       if constexpr (has_destructor<T>::value) {
         resource_wrapper->resource()->destructor(env);
       }
@@ -297,14 +303,14 @@ ResourcePtr<T> make_resource(Args &&...args) {
   // We use a wrapper struct with an extra field to track if the
   // resource has actually been initialized. This way if the constructor
   // below throws, we can skip the destructor calls in the Erlang dtor
-  resource_wrapper->initialized = false;
+  resource_wrapper->set_initialized(false);
 
   // Invoke the constructor with prefect forwarding to initialize the
   // object at the VM-allocated memory
   new (reinterpret_cast<U *>(resource_wrapper->resource()))
       U(std::forward<Args>(args)...);
 
-  resource_wrapper->initialized = true;
+  resource_wrapper->set_initialized(true);
 
   return resource;
 }
