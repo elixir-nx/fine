@@ -252,6 +252,13 @@ defmodule FinestTest do
 
       assert_receive :destructor_default
     end
+
+    test "resource can be abstract" do
+      NIF.resource_abstract(self())
+      :erlang.garbage_collect(self())
+
+      assert_receive :destructor_default
+    end
   end
 
   describe "make_new_binary" do

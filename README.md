@@ -287,6 +287,32 @@ class Generator {
 If defined, the `destructor` callback is called first, and then the
 `T` destructor is called as usual.
 
+To make use of polymorphism with resources, only the base class must be
+declared using `FINE_RESOURCE`.  To construct derived classes, use the
+`fine::make_resource<Base, Derived>(...)` function:
+
+```c++
+class Supplier {
+public:
+    virtual ~Supplier() noexcept = default;
+
+    virtual std::int64_t supply() = 0;
+};
+FINE_RESOURCE(Supplier);
+
+class ConstantSupplier final : public Supplier {
+public:
+    ConstantSupplier(std::int64_t constant) : m_constant(constant) {}
+
+    std::int64_t supply() { return m_constant; }
+
+private:
+    std::int64_t m_constant;
+};
+
+fine::ResourcePtr<Supplier> supplier = fine::make_resource<Supplier, ConstantSupplier>(INT64_C(42));
+```
+
 Oftentimes NIFs deal with classes from third-party packages, in which
 case, you may not control how the objects are created and you cannot
 add callbacks such as `destructor` to the implementation. If you run

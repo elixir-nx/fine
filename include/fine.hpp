@@ -164,17 +164,30 @@ private:
 
 namespace __private__ {
 template <typename T> struct ResourceWrapper {
-  T resource;
-  bool initialized;
+  union {
+    struct {
+      bool initialized;
+    };
+    std::max_align_t _unused;
+  };
+
+  const T *resource() const { return reinterpret_cast<const T *>(this + 1); }
+
+  T *resource() noexcept { return reinterpret_cast<T *>(this + 1); }
+
+  template <typename U, typename = std::enable_if_t<std::is_base_of_v<T, U>>>
+  static constexpr std::size_t byte_size() noexcept {
+    return sizeof(ResourceWrapper) + sizeof(U);
+  }
 
   static void dtor(ErlNifEnv *env, void *ptr) {
     auto resource_wrapper = reinterpret_cast<ResourceWrapper<T> *>(ptr);
 
     if (resource_wrapper->initialized) {
       if constexpr (has_destructor<T>::value) {
-        resource_wrapper->resource.destructor(env);
+        resource_wrapper->resource()->destructor(env);
       }
-      resource_wrapper->resource.~T();
+      resource_wrapper->resource()->~T();
     }
   }
 
@@ -221,11 +234,11 @@ public:
     return *this;
   }
 
-  T &operator*() const { return this->ptr->resource; }
+  T &operator*() const { return *this->ptr->resource(); }
 
-  T *operator->() const { return &this->ptr->resource; }
+  T *operator->() const { return this->ptr->resource(); }
 
-  T *get() const { return &this->ptr->resource; }
+  T *get() const { return this->ptr->resource(); }
 
   friend void swap(ResourcePtr<T> &left, ResourcePtr<T> &right) {
     using std::swap;
@@ -241,12 +254,17 @@ private:
   // Friend functions that use the resource_type static member or the
   // private constructor.
 
-  template <typename U, typename... Args>
+  template <typename U, typename V, typename... Args, typename>
   friend ResourcePtr<U> make_resource(Args &&...args);
+
+  template <typename U>
+  friend Term make_resource_binary(ErlNifEnv *env, ResourcePtr<U> resource,
+                                   const char *data, size_t size);
 
   friend class Registration;
 
   friend struct Decoder<ResourcePtr<T>>;
+  friend struct Encoder<ResourcePtr<T>>;
 
   inline static ErlNifResourceType *resource_type = nullptr;
 
@@ -255,7 +273,8 @@ private:
 
 // Allocates a new resource object, invoking its constructor with the
 // given arguments.
-template <typename T, typename... Args>
+template <typename T, typename U = T, typename... Args,
+          typename = std::enable_if_t<std::is_base_of_v<T, U>>>
 ResourcePtr<T> make_resource(Args &&...args) {
   auto type = ResourcePtr<T>::resource_type;
 
@@ -265,10 +284,10 @@ ResourcePtr<T> make_resource(Args &&...args) {
         " to register your resource type with the FINE_RESOURCE macro");
   }
 
-  void *allocation_ptr =
-      enif_alloc_resource(type, sizeof(__private__::ResourceWrapper<T>));
+  void *allocation_ptr = enif_alloc_resource(
+      type, __private__::ResourceWrapper<T>::template byte_size<U>());
 
-  auto resource_wrapper =
+  auto *resource_wrapper =
       reinterpret_cast<__private__::ResourceWrapper<T> *>(allocation_ptr);
 
   // We create ResourcePtr right away, to make sure the resource is
@@ -282,7 +301,8 @@ ResourcePtr<T> make_resource(Args &&...args) {
 
   // Invoke the constructor with prefect forwarding to initialize the
   // object at the VM-allocated memory
-  new (&resource_wrapper->resource) T(std::forward<Args>(args)...);
+  new (reinterpret_cast<U *>(resource_wrapper->resource()))
+      U(std::forward<Args>(args)...);
 
   resource_wrapper->initialized = true;
 
@@ -296,8 +316,8 @@ ResourcePtr<T> make_resource(Args &&...args) {
 template <typename T>
 Term make_resource_binary(ErlNifEnv *env, ResourcePtr<T> resource,
                           const char *data, size_t size) {
-  return enif_make_resource_binary(
-      env, reinterpret_cast<void *>(resource.get()), data, size);
+  return enif_make_resource_binary(env, reinterpret_cast<void *>(resource.ptr),
+                                   data, size);
 }
 
 // Creates a binary term copying data from the given buffer.
@@ -811,7 +831,7 @@ template <typename K, typename V> struct Encoder<std::map<K, V>> {
 
 template <typename T> struct Encoder<ResourcePtr<T>> {
   static ERL_NIF_TERM encode(ErlNifEnv *env, const ResourcePtr<T> &resource) {
-    return enif_make_resource(env, reinterpret_cast<void *>(resource.get()));
+    return enif_make_resource(env, reinterpret_cast<void *>(resource.ptr));
   }
 };
 
