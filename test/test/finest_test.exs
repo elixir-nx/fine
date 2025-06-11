@@ -298,13 +298,13 @@ defmodule FinestTest do
     end
   end
 
-  describe "rwlock" do
+  describe "shared_mutex" do
     test "unique_lock" do
-      NIF.rwlock_unique_lock_test()
+      NIF.shared_mutex_unique_lock_test()
     end
 
     test "shared_lock" do
-      NIF.rwlock_shared_lock_test()
+      NIF.shared_mutex_shared_lock_test()
     end
   end
 end

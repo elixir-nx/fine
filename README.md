@@ -511,8 +511,9 @@ conditions. While C++ provides synchronization mechanisms, these are unknown to
 Erlang and cannot take advantage of tools like *lock checker* or *lcnt*.
 
 Fine provides analogues to `std::mutex` and `std::shared_mutex`, respectively
-called `fine::Mutex` and `fine::RwLock`. Those are compatible with the standard
-mutex wrappers, such as `std::unique_lock` and `std::shared_lock`. For example:
+called `fine::Mutex` and `fine::SharedMutex`. Those are compatible with the
+standard mutex wrappers, such as `std::unique_lock` and `std::shared_lock`.
+For example:
 
 ```c++
 #include <fine/sync.hpp>
@@ -523,16 +524,23 @@ fine::Mutex mutex;
   auto lock = std::unique_lock(mutex);
   ...
 }
+
+fine::SharedMutex mutex;
+
+{
+  auto lock = std::shared_lock(mutex);
+  ...
+}
 ```
 
-While `fine::Mutex` and `fine::RwLock` can be created using their default
+While `fine::Mutex` and `fine::SharedMutex` can be created using their default
 constructors, users might want to explore their constructors accepting debug
 information:
 ```c++
 fine::Mutex mutex("app_name", "type_name");
 fine::Mutex mutex("app_name", "type_name", "instance_name");
-fine::RwLock rwlock("app_name", "type_name");
-fine::RwLock rwlock("app_name", "type_name", "instance_name");
+fine::SharedMutex rwlock("app_name", "type_name");
+fine::SharedMutex rwlock("app_name", "type_name", "instance_name");
 ```
 
 Conventionnally, `"app_name"` is a string representation of the application
@@ -547,7 +555,7 @@ would create a read/write lock for an object of type *my_object* like so:
 struct my_object;
 const char* my_object__name(struct my_object*);
 
-fine::RwLock my_object_rwlock("my_lib", "my_object", my_object__name(my_object));
+fine::SharedMutex my_object_rwlock("my_lib", "my_object", my_object__name(my_object));
 ```
 
 <!-- Docs -->

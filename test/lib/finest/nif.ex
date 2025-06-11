@@ -53,8 +53,8 @@ defmodule Finest.NIF do
   def mutex_unique_lock_test(), do: err!()
   def mutex_scoped_lock_test(), do: err!()
 
-  def rwlock_unique_lock_test(), do: err!()
-  def rwlock_shared_lock_test(), do: err!()
+  def shared_mutex_unique_lock_test(), do: err!()
+  def shared_mutex_shared_lock_test(), do: err!()
 
   defp err!(), do: :erlang.nif_error(:not_loaded)
 end

@@ -6,8 +6,7 @@
 
 #include <erl_nif.h>
 #include <fine.hpp>
-#include <fine/mutex.hpp>
-#include <fine/rwlock.hpp>
+#include <fine/sync.hpp>
 
 namespace finest {
 
@@ -268,33 +267,33 @@ std::nullopt_t mutex_scoped_lock_test(ErlNifEnv *) {
 }
 FINE_NIF(mutex_scoped_lock_test, 0);
 
-std::nullopt_t rwlock_unique_lock_test(ErlNifEnv *) {
-  fine::RwLock rwlock;
+std::nullopt_t shared_mutex_unique_lock_test(ErlNifEnv *) {
+  fine::SharedMutex mutex;
 
-  rwlock.lock_shared();
+  mutex.lock_shared();
 
-  std::thread thread([&rwlock] { auto lock = std::unique_lock(rwlock); });
+  std::thread thread([&mutex] { auto lock = std::unique_lock(mutex); });
 
-  rwlock.unlock_shared();
+  mutex.unlock_shared();
   thread.join();
 
   return std::nullopt;
 }
-FINE_NIF(rwlock_unique_lock_test, 0);
+FINE_NIF(shared_mutex_unique_lock_test, 0);
 
-std::nullopt_t rwlock_shared_lock_test(ErlNifEnv *) {
-  fine::RwLock rwlock("finest", "rwlock_shared_lock_test", "rwlock");
+std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
+  fine::SharedMutex mutex("finest", "shared_mutex_shared_lock_test", "mutex");
 
-  rwlock.lock();
+  mutex.lock();
 
-  std::thread thread([&rwlock] { auto lock = std::shared_lock(rwlock); });
+  std::thread thread([&mutex] { auto lock = std::shared_lock(mutex); });
 
-  rwlock.unlock();
+  mutex.unlock();
   thread.join();
 
   return std::nullopt;
 }
-FINE_NIF(rwlock_shared_lock_test, 0);
+FINE_NIF(shared_mutex_shared_lock_test, 0);
 
 } // namespace finest
 
