@@ -147,15 +147,15 @@ Fine provides implementations for the following types:
 | `std::string`                        | `binary`                | x       | x       |
 | `fine::Atom`                         | `atom`                      | x       | x       |
 | `std::nullopt_t`                     | `nil`                       | x       |         |
-| `std::optional<T>`                   | `T \| nil`                  | x       | x       |
-| `std::variant<Args...>`              | `Args[0] \| ... \| Args[N]` | x       | x       |
+| `std::optional<T>`                   | `a \| nil`                  | x       | x       |
+| `std::variant<Args...>`              | `a \| b \| ... \| c` | x       | x       |
 | `std::tuple<Args...>`                | `tuple`                     | x       | x       |
-| `std::vector<T>`                     | `list(T)`                   | x       | x       |
-| `std::map<K, V>`                     | `%{K => V}`                 | x       | x       |
+| `std::vector<T>`                     | `list(a)`                   | x       | x       |
+| `std::map<K, V>`                     | `%{k => v}`                 | x       | x       |
 | `fine::ResourcePtr<T>`               | `reference`                 | x       | x       |
-| `T` with [struct metadata](#structs) | `%T{...}`                   | x       | x       |
-| `fine::Ok<Args...>`                  | `{:ok, Args...}`            | x       |         |
-| `fine::Error<Args...>`               | `{:error, Args...}`         | x       |         |
+| `T` with [struct metadata](#structs) | `%a{}`                   | x       | x       |
+| `fine::Ok<Args...>`                  | `{:ok, ...}`            | x       |         |
+| `fine::Error<Args...>`               | `{:error, ...}`         | x       |         |
 
 > #### ERL_NIF_TERM {: .warning}
 >
