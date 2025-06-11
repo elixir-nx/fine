@@ -143,8 +143,8 @@ Fine provides implementations for the following types:
 | `bool`                               | `boolean`                   | x       | x       |
 | `ErlNifPid`                          | `pid`                       | x       | x       |
 | `ErlNifBinary`                       | `binary`                    | x       | x       |
-| `std::string_view`                   | `String.t()`                | x       | x       |
-| `std::string`                        | `String.t()`                | x       | x       |
+| `std::string_view`                   | `binary`                | x       | x       |
+| `std::string`                        | `binary`                | x       | x       |
 | `fine::Atom`                         | `atom`                      | x       | x       |
 | `std::nullopt_t`                     | `nil`                       | x       |         |
 | `std::optional<T>`                   | `T \| nil`                  | x       | x       |
