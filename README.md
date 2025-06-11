@@ -511,38 +511,17 @@ conditions. While C++ provides synchronization mechanisms, these are unknown to
 Erlang and cannot take advantage of tools like *lock checker* or *lcnt*.
 
 Fine provides analogues to `std::mutex` and `std::shared_mutex`, respectively
-called `fine::Mutex` and `fine::RwLock`:
+called `fine::Mutex` and `fine::RwLock`. Those are compatible with the standard
+mutex wrappers, such as `std::unique_lock` and `std::shared_lock`. For example:
 
 ```c++
-#include <fine/mutex.hpp>
-#include <fine/rwlock.hpp>
+#include <fine/sync.hpp>
 
 fine::Mutex mutex;
 
-mutex.lock();
-mutex.unlock();
-bool locked = mutex.try_lock();
-
 {
   auto lock = std::unique_lock(mutex);
-}
-
-fine::RwLock rwlock;
-
-rwlock.lock();
-rwlock.unlock();
-bool locked = rwlock.try_lock();
-
-rwlock.lock_shared();
-rwlock.unlock_shared();
-bool locked = rwlock.try_lock_shared();
-
-{
-  auto lock = std::shared_lock(rwlock);
-}
-
-{
-  auto lock = std::unique_lock(rwlock);
+  ...
 }
 ```
 
