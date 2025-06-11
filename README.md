@@ -134,28 +134,28 @@ auto message = fine::decode<std::string>(env, term);
 
 Fine provides implementations for the following types:
 
-| C++ Type                             | Elixir Type                 | Encoder | Decoder |
-| ------------------------------------ | --------------------------- | ------- | ------- |
-| `fine::Term`                         | `term`                      | x       | x       |
-| `int64_t`                            | `integer`                   | x       | x       |
-| `uint64_t`                           | `non_neg_integer`           | x       | x       |
-| `double`                             | `float`                     | x       | x       |
-| `bool`                               | `boolean`                   | x       | x       |
-| `ErlNifPid`                          | `pid`                       | x       | x       |
-| `ErlNifBinary`                       | `binary`                    | x       | x       |
-| `std::string_view`                   | `binary`                | x       | x       |
-| `std::string`                        | `binary`                | x       | x       |
-| `fine::Atom`                         | `atom`                      | x       | x       |
-| `std::nullopt_t`                     | `nil`                       | x       |         |
-| `std::optional<T>`                   | `a \| nil`                  | x       | x       |
-| `std::variant<Args...>`              | `a \| b \| ... \| c` | x       | x       |
-| `std::tuple<Args...>`                | `tuple`                     | x       | x       |
-| `std::vector<T>`                     | `list(a)`                   | x       | x       |
-| `std::map<K, V>`                     | `%{k => v}`                 | x       | x       |
-| `fine::ResourcePtr<T>`               | `reference`                 | x       | x       |
-| `T` with [struct metadata](#structs) | `%a{}`                   | x       | x       |
-| `fine::Ok<Args...>`                  | `{:ok, ...}`            | x       |         |
-| `fine::Error<Args...>`               | `{:error, ...}`         | x       |         |
+| C++ Type                             | Encoder | Decoder | Elixir Type                 |
+| ------------------------------------ | ------- | ------- | --------------------------- |
+| `fine::Term`                         | x       | x       | `term`                      |
+| `int64_t`                            | x       | x       | `integer`                   |
+| `uint64_t`                           | x       | x       | `non_neg_integer`           |
+| `double`                             | x       | x       | `float`                     |
+| `bool`                               | x       | x       | `boolean`                   |
+| `ErlNifPid`                          | x       | x       | `pid`                       |
+| `ErlNifBinary`                       | x       | x       | `binary`                    |
+| `std::string_view`                   | x       | x       | `binary`                    |
+| `std::string`                        | x       | x       | `binary`                    |
+| `fine::Atom`                         | x       | x       | `atom`                      |
+| `std::nullopt_t`                     | x       |         | `nil`                       |
+| `std::optional<T>`                   | x       | x       | `a \| nil`                  |
+| `std::variant<Args...>`              | x       | x       | `a \| b \| ... \| c`        |
+| `std::tuple<Args...>`                | x       | x       | `{a, b, ..., c}`            |
+| `std::vector<T>`                     | x       | x       | `list(a)`                   |
+| `std::map<K, V>`                     | x       | x       | `%{k => v}`                 |
+| `fine::ResourcePtr<T>`               | x       | x       | `reference`                 |
+| `T` with [struct metadata](#structs) | x       | x       | `%a{}`                      |
+| `fine::Ok<Args...>`                  | x       |         | `{:ok, ...}`                |
+| `fine::Error<Args...>`               | x       |         | `{:error, ...}`             |
 
 > #### ERL_NIF_TERM {: .warning}
 >
