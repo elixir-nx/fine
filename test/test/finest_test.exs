@@ -287,4 +287,24 @@ defmodule FinestTest do
       end
     end
   end
+
+  describe "mutex" do
+    test "unique_lock" do
+      NIF.mutex_unique_lock_test()
+    end
+
+    test "scoped_lock" do
+      NIF.mutex_scoped_lock_test()
+    end
+  end
+
+  describe "shared_mutex" do
+    test "unique_lock" do
+      NIF.shared_mutex_unique_lock_test()
+    end
+
+    test "shared_lock" do
+      NIF.shared_mutex_shared_lock_test()
+    end
+  end
 end
