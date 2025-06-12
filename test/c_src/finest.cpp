@@ -76,6 +76,30 @@ struct ExError {
   static constexpr auto is_exception = true;
 };
 
+struct AbstractRes {
+  virtual ~AbstractRes() noexcept = default;
+};
+FINE_RESOURCE(AbstractRes);
+
+struct ConcreteRes : AbstractRes {
+  ErlNifPid pid;
+
+  ConcreteRes(ErlNifPid pid) : pid(pid) {}
+
+  ~ConcreteRes() noexcept override {
+    auto target_pid = this->pid;
+
+    auto thread = std::thread([target_pid] {
+      auto msg_env = enif_alloc_env();
+      auto msg = fine::encode(msg_env, atoms::destructor_default);
+      enif_send(NULL, &target_pid, msg_env, msg);
+      enif_free_env(msg_env);
+    });
+
+    thread.detach();
+  }
+};
+
 int64_t add(ErlNifEnv *, int64_t x, int64_t y) { return x + y; }
 FINE_NIF(add, 0);
 
@@ -195,6 +219,11 @@ fine::Term resource_binary(ErlNifEnv *env,
                                     resource->binary.size());
 }
 FINE_NIF(resource_binary, 0);
+
+fine::ResourcePtr<AbstractRes> resource_abstract(ErlNifEnv *, ErlNifPid pid) {
+  return fine::make_resource<AbstractRes, ConcreteRes>(pid);
+}
+FINE_NIF(resource_abstract, 0);
 
 fine::Term make_new_binary(ErlNifEnv *env) {
   const char *buffer = "hello world";
