@@ -304,8 +304,7 @@ Term make_resource_binary(ErlNifEnv *env, ResourcePtr<T> resource,
 //
 // This is useful when returning large binary from a NIF and the source
 // buffer does not outlive the return.
-inline fine::Term make_new_binary(ErlNifEnv *env, const char *data,
-                                  size_t size) {
+inline Term make_new_binary(ErlNifEnv *env, const char *data, size_t size) {
   ERL_NIF_TERM term;
   auto term_data = enif_make_new_binary(env, size, &term);
   if (term_data == nullptr) {
@@ -432,9 +431,12 @@ template <> struct Decoder<std::string_view> {
   }
 };
 
-template <> struct Decoder<std::string> {
-  static std::string decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    return std::string(fine::decode<std::string_view>(env, term));
+template <typename Alloc>
+struct Decoder<std::basic_string<char, std::char_traits<char>, Alloc>> {
+  using string = std::basic_string<char, std::char_traits<char>, Alloc>;
+
+  static string decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    return string(fine::decode<std::string_view>(env, term));
   }
 };
 
@@ -521,15 +523,16 @@ private:
   }
 };
 
-template <typename T> struct Decoder<std::vector<T>> {
-  static std::vector<T> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+template <typename T, typename Alloc> struct Decoder<std::vector<T, Alloc>> {
+  static std::vector<T, Alloc> decode(ErlNifEnv *env,
+                                      const ERL_NIF_TERM &term) {
     unsigned int length;
 
     if (!enif_get_list_length(env, term, &length)) {
       throw std::invalid_argument("decode failed, expected a list");
     }
 
-    std::vector<T> vector;
+    std::vector<T, Alloc> vector;
     vector.reserve(length);
 
     auto list = term;
@@ -537,7 +540,7 @@ template <typename T> struct Decoder<std::vector<T>> {
     ERL_NIF_TERM head, tail;
     while (enif_get_list_cell(env, list, &head, &tail)) {
       auto elem = fine::decode<T>(env, head);
-      vector.push_back(elem);
+      vector.emplace_back(std::move(elem));
       list = tail;
     }
 
@@ -545,11 +548,13 @@ template <typename T> struct Decoder<std::vector<T>> {
   }
 };
 
-template <typename K, typename V> struct Decoder<std::map<K, V>> {
-  static std::map<K, V> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    auto map = std::map<K, V>();
+template <typename K, typename V, typename Compare, typename Alloc>
+struct Decoder<std::map<K, V, Compare, Alloc>> {
+  static std::map<K, V, Compare, Alloc> decode(ErlNifEnv *env,
+                                               const ERL_NIF_TERM &term) {
+    std::map<K, V, Compare, Alloc> map;
 
-    ERL_NIF_TERM key, value;
+    ERL_NIF_TERM key_term, value_term;
     ErlNifMapIterator iter;
     if (!enif_map_iterator_create(env, term, &iter,
                                   ERL_NIF_MAP_ITERATOR_FIRST)) {
@@ -559,8 +564,12 @@ template <typename K, typename V> struct Decoder<std::map<K, V>> {
     // Define RAII cleanup for the iterator
     auto cleanup = IterCleanup{env, iter};
 
-    while (enif_map_iterator_get_pair(env, &iter, &key, &value)) {
-      map[fine::decode<K>(env, key)] = fine::decode<V>(env, value);
+    while (enif_map_iterator_get_pair(env, &iter, &key_term, &value_term)) {
+      auto key = fine::decode<K>(env, key_term);
+      auto value = fine::decode<V>(env, value_term);
+
+      map.insert_or_assign(std::move(key), std::move(value));
+
       enif_map_iterator_next(env, &iter);
     }
 
@@ -705,8 +714,11 @@ template <> struct Encoder<std::string_view> {
   }
 };
 
-template <> struct Encoder<std::string> {
-  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::string &string) {
+template <typename Alloc>
+struct Encoder<std::basic_string<char, std::char_traits<char>, Alloc>> {
+  static ERL_NIF_TERM
+  encode(ErlNifEnv *env,
+         const std::basic_string<char, std::char_traits<char>, Alloc> &string) {
     return fine::encode<std::string_view>(env, string);
   }
 };
@@ -775,8 +787,9 @@ private:
   }
 };
 
-template <typename T> struct Encoder<std::vector<T>> {
-  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::vector<T> &vector) {
+template <typename T, typename Alloc> struct Encoder<std::vector<T, Alloc>> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env,
+                             const std::vector<T, Alloc> &vector) {
     auto terms = std::vector<ERL_NIF_TERM>();
     terms.reserve(vector.size());
 
@@ -789,8 +802,10 @@ template <typename T> struct Encoder<std::vector<T>> {
   }
 };
 
-template <typename K, typename V> struct Encoder<std::map<K, V>> {
-  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::map<K, V> &map) {
+template <typename K, typename V, typename Compare, typename Alloc>
+struct Encoder<std::map<K, V, Compare, Alloc>> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env,
+                             const std::map<K, V, Compare, Alloc> &map) {
     auto keys = std::vector<ERL_NIF_TERM>();
     auto values = std::vector<ERL_NIF_TERM>();
 
