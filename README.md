@@ -32,7 +32,7 @@ NIFs in C++.
 
 - STL compatible Erlang-backend mutex and rwlock.
 
-- Compatible with STL container allocators and polymorphic memor
+- Compatible with STL container allocators and polymorphic memory
   resources.
 
 ## Motivation
@@ -573,7 +573,7 @@ struct MyAllocator { ... };
 
 std::pmr::memory_resource* my_memory_resource = ...;
 
-std::vector<std::pmr::string, MyAllocator<std::pmr::string>> duplicate(
+std::vector<std::pmr::string, MyAllocator<std::pmr::string>> repeat_string(
     ErlNifEnv *,
     std::basic_string<char, std::char_traits<char>, MyAllocator<char>>
         string,
@@ -586,8 +586,12 @@ std::vector<std::pmr::string, MyAllocator<std::pmr::string>> duplicate(
 
   return strings;
 }
-FINE_NIF(duplicate, 0);
+FINE_NIF(repeat_string, 0);
 ```
+
+Attempting to decode STL containers making use of `std::pmr::polymorphic_allocator`
+will result in the `std::pmr::get_default_resource()` memory resource being
+used.
 
 <!-- Docs -->
 
