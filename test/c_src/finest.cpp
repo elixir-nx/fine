@@ -77,42 +77,6 @@ struct ExError {
   static constexpr auto is_exception = true;
 };
 
-namespace __private__ {
-class : public std::pmr::memory_resource {
-private:
-  // https://cplusplus.github.io/LWG/issue2843
-  //
-  // We assume the alignment is always `alignof(std::max_align_t)`, as
-  // guaranteed by `enif_alloc`, which is in line with C++ 17.
-
-  void *do_allocate(std::size_t bytes, std::size_t alignment) override {
-    (void)alignment;
-
-    void *ptr = enif_alloc(bytes);
-    if (ptr == nullptr) {
-      throw std::bad_alloc();
-    }
-    return ptr;
-  }
-
-  void do_deallocate(void *p, std::size_t bytes,
-                     std::size_t alignment) override {
-    (void)bytes;
-    (void)alignment;
-
-    enif_free(p);
-  }
-
-  bool
-  do_is_equal(const std::pmr::memory_resource &other) const noexcept override {
-    return this == std::addressof(other);
-  }
-} memory_resource;
-} // namespace __private__
-
-inline std::pmr::memory_resource *memory_resource =
-    &__private__::memory_resource;
-
 template <typename T> struct Allocator {
   using value_type = std::decay_t<T>;
 
@@ -370,14 +334,19 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
 }
 FINE_NIF(shared_mutex_shared_lock_test, 0);
 
-std::vector<std::pmr::string, Allocator<std::pmr::string>> allocators(
-    ErlNifEnv *,
-    std::basic_string<char, std::char_traits<char>, Allocator<char>> string,
-    std::uint64_t repeat) {
-  std::vector<std::pmr::string, Allocator<std::pmr::string>> strings;
+template <typename T> using NifVector = std::vector<T, Allocator<T>>;
+
+template <typename T>
+using NifBasicString = std::basic_string<T, std::char_traits<T>, Allocator<T>>;
+
+using NifString = NifBasicString<char>;
+
+NifVector<NifString> allocators(ErlNifEnv *, NifString string,
+                                std::uint64_t repeat) {
+  NifVector<NifString> strings;
 
   for (std::uint64_t i = 0; i != repeat; ++i) {
-    strings.emplace_back(std::pmr::string(string, memory_resource));
+    strings.emplace_back(string);
   }
 
   return strings;
