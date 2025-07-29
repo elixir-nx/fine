@@ -409,8 +409,14 @@ template <> struct Decoder<bool> {
 template <> struct Decoder<ErlNifPid> {
   static ErlNifPid decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
     ErlNifPid pid;
-    if (!enif_get_local_pid(env, term, &pid)) {
+    if (!enif_is_pid(env, term)) {
       throw std::invalid_argument("decode failed, expected a local pid");
+    }
+    if (!enif_get_local_pid(env, term, &pid)) {
+      // If the term is a PID and it is not local, it means it's a remote PID.
+      throw std::invalid_argument(
+          "decode failed, expected a local pid, but got a remote one. NIFs can "
+          "only send messages to local PIDs and remote PIDs cannot be decoded");
     }
     return pid;
   }
