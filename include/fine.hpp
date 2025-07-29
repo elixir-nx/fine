@@ -132,6 +132,8 @@ class Term {
   // (and the nif signature).
 
 public:
+  Term() {}
+
   Term(const ERL_NIF_TERM &term) : term(term) {}
 
   operator ERL_NIF_TERM() const { return this->term; }
