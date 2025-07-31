@@ -8,11 +8,9 @@ defmodule Fine do
 
   @moduledoc readme_docs
 
-  @include_dir Path.expand("include")
-
   @doc """
   Returns the directory with Fine header files.
   """
   @spec include_dir() :: String.t()
-  def include_dir(), do: @include_dir
+  def include_dir(), do: Application.app_dir(:fine, "include")
 end
