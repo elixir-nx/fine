@@ -8,7 +8,10 @@ defmodule Fine do
 
   @moduledoc readme_docs
 
-  @include_dir Path.expand("include")
+  # Note that include/ is a conventional location for Erlang header
+  # files (.hrl) and it is copied to _build/. For this reason, we
+  # pick a different name.
+  @include_dir Path.expand("c_include")
 
   @doc """
   Returns the directory with Fine header files.

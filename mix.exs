@@ -47,7 +47,7 @@ defmodule Fine.MixProject do
     [
       licenses: ["Apache-2.0"],
       links: %{"GitHub" => @github_url},
-      files: ~w(include lib mix.exs README.md LICENSE CHANGELOG.md)
+      files: ~w(c_include lib mix.exs README.md LICENSE CHANGELOG.md)
     ]
   end
 end
