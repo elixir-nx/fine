@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [v0.1.3](https://github.com/elixir-nx/fine/tree/v0.1.3) (2025-07-31)
+
+### Fixed
+
+- Include files being copied into releases
+
 ## [v0.1.2](https://github.com/elixir-nx/fine/tree/v0.1.2) (2025-07-29)
 
 ### Added

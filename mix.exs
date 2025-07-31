@@ -1,7 +1,7 @@
 defmodule Fine.MixProject do
   use Mix.Project
 
-  @version "0.1.2"
+  @version "0.1.3"
   @description "C++ library enabling more ergonomic NIFs, tailored to Elixir"
   @github_url "https://github.com/elixir-nx/fine"
 
