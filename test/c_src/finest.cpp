@@ -152,6 +152,16 @@ FINE_NIF(codec_string_view, 0);
 std::string codec_string(ErlNifEnv *, std::string term) { return term; }
 FINE_NIF(codec_string, 0);
 
+std::basic_string<char, std::char_traits<char>,
+                  std::pmr::polymorphic_allocator<char>>
+codec_string_alloc(ErlNifEnv *,
+                   std::basic_string<char, std::char_traits<char>,
+                                     std::pmr::polymorphic_allocator<char>>
+                       term) {
+  return term;
+}
+FINE_NIF(codec_string_alloc, 0);
+
 fine::Atom codec_atom(ErlNifEnv *, fine::Atom term) { return term; }
 FINE_NIF(codec_atom, 0);
 
@@ -197,6 +207,17 @@ codec_map_atom_int64(ErlNifEnv *, std::map<fine::Atom, int64_t> term) {
   return term;
 }
 FINE_NIF(codec_map_atom_int64, 0);
+std::map<fine::Atom, int64_t, std::less<fine::Atom>,
+         std::pmr::polymorphic_allocator<std::pair<const fine::Atom, int64_t>>>
+codec_map_atom_int64_alloc(
+    ErlNifEnv *,
+    std::map<
+        fine::Atom, int64_t, std::less<fine::Atom>,
+        std::pmr::polymorphic_allocator<std::pair<const fine::Atom, int64_t>>>
+        term) {
+  return term;
+}
+FINE_NIF(codec_map_atom_int64_alloc, 0);
 
 fine::ResourcePtr<TestResource>
 codec_resource(ErlNifEnv *, fine::ResourcePtr<TestResource> term) {
