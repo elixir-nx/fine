@@ -142,6 +142,36 @@ private:
   ERL_NIF_TERM term;
 };
 
+inline static bool operator==(const fine::Term &lhs,
+                              const fine::Term &rhs) noexcept {
+  return enif_compare(lhs, rhs) == 0;
+}
+
+inline static bool operator!=(const fine::Term &lhs,
+                              const fine::Term &rhs) noexcept {
+  return enif_compare(lhs, rhs) != 0;
+}
+
+inline static bool operator<(const fine::Term &lhs,
+                             const fine::Term &rhs) noexcept {
+  return enif_compare(lhs, rhs) < 0;
+}
+
+inline static bool operator<=(const fine::Term &lhs,
+                              const fine::Term &rhs) noexcept {
+  return enif_compare(lhs, rhs) <= 0;
+}
+
+inline static bool operator>(const fine::Term &lhs,
+                             const fine::Term &rhs) noexcept {
+  return enif_compare(lhs, rhs) > 0;
+}
+
+inline static bool operator>=(const fine::Term &lhs,
+                              const fine::Term &rhs) noexcept {
+  return enif_compare(lhs, rhs) >= 0;
+}
+
 // Represents a `:ok` tagged tuple, useful as a NIF result.
 template <typename... Args> class Ok {
 public:

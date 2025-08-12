@@ -307,4 +307,42 @@ defmodule FinestTest do
       NIF.shared_mutex_shared_lock_test()
     end
   end
+
+  describe "comparison" do
+    test "equal" do
+      refute NIF.compare_eq_test(64, 42)
+      refute NIF.compare_eq_test(nil, %{})
+      assert NIF.compare_eq_test("fine", "fine")
+    end
+
+    test "not equal" do
+      assert NIF.compare_ne_test(64, 42)
+      assert NIF.compare_ne_test(nil, %{})
+      refute NIF.compare_ne_test("fine", "fine")
+    end
+
+    test "less than" do
+      refute NIF.compare_lt_test(64, 42)
+      assert NIF.compare_lt_test(nil, %{})
+      refute NIF.compare_lt_test("fine", "fine")
+    end
+
+    test "less than equal" do
+      refute NIF.compare_le_test(64, 42)
+      assert NIF.compare_le_test(nil, %{})
+      assert NIF.compare_le_test("fine", "fine")
+    end
+
+    test "greater than" do
+      assert NIF.compare_gt_test(64, 42)
+      refute NIF.compare_gt_test(nil, %{})
+      refute NIF.compare_gt_test("fine", "fine")
+    end
+
+    test "greater than equal" do
+      assert NIF.compare_ge_test(64, 42)
+      refute NIF.compare_ge_test(nil, %{})
+      assert NIF.compare_ge_test("fine", "fine")
+    end
+  end
 end
