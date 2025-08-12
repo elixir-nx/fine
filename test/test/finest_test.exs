@@ -351,4 +351,12 @@ defmodule FinestTest do
       assert NIF.compare_ge("fine", "fine")
     end
   end
+
+  describe "hash" do
+    test "phash2" do
+      for elem <- [42, "fine", ["it", %{"should" => {"just", "work"}}]] do
+        assert NIF.hash_test(elem) == :erlang.phash2(elem)
+      end
+    end
+  end
 end

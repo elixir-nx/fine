@@ -354,6 +354,14 @@ bool compare_ge(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs >= rhs;
 }
 FINE_NIF(compare_ge, 0);
+
+std::uint64_t hash_test(ErlNifEnv *, fine::Term term) noexcept {
+  // Ensure the use of PHASH2. INTERNAL is not guaranteed to be stable across
+  // ERTS instances, even less so ERTS versions.
+  return fine::hash<fine::HashAlgorithm::PHASH2>(term);
+}
+FINE_NIF(hash_test, 0);
+
 } // namespace finest
 
 FINE_INIT("Elixir.Finest.NIF");

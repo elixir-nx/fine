@@ -44,6 +44,15 @@ template <typename T> ERL_NIF_TERM encode(ErlNifEnv *env, const T &value);
 template <typename T, typename SFINAE = void> struct Decoder;
 template <typename T, typename SFINAE = void> struct Encoder;
 
+enum class HashAlgorithm {
+  INTERNAL = ERL_NIF_INTERNAL_HASH,
+  PHASH2 = ERL_NIF_PHASH2,
+};
+
+namespace __private__ {
+template <typename T> struct Hasher;
+}
+
 namespace __private__ {
 std::vector<ErlNifFunc> &get_erl_nif_funcs();
 int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
@@ -90,6 +99,7 @@ private:
   }
 
   friend struct Encoder<Atom>;
+  friend struct __private__::Hasher<Atom>;
 
   friend int __private__::load(ErlNifEnv *env, void **priv_data,
                                ERL_NIF_TERM load_info);
@@ -1101,6 +1111,34 @@ inline int load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
 }
 } // namespace __private__
 
+// Hash
+namespace __private__ {
+template <> struct Hasher<Atom> {
+  static std::uint64_t hash(HashAlgorithm algorithm, const Atom &atom,
+                            std::uint64_t salt = 0) noexcept {
+    return enif_hash(static_cast<ErlNifHash>(algorithm), *atom.term, salt);
+  }
+};
+
+template <> struct Hasher<Term> {
+  static std::uint64_t hash(HashAlgorithm algorithm, const Term &term,
+                            std::uint64_t salt = 0) noexcept {
+    return enif_hash(static_cast<ErlNifHash>(algorithm), term, salt);
+  }
+};
+} // namespace __private__
+
+template <HashAlgorithm A = HashAlgorithm::INTERNAL, typename T>
+inline static std::uint64_t hash(const T &value, std::uint64_t salt = 0) {
+  return __private__::Hasher<T>::hash(A, value, salt);
+}
+
+template <typename T>
+inline static std::uint64_t hash(HashAlgorithm algorithm, const T &value,
+                                 std::uint64_t salt = 0) {
+  return __private__::Hasher<T>::hash(algorithm, value, salt);
+}
+
 // Macros
 
 #define FINE_NIF(name, flags)                                                  \
@@ -1157,5 +1195,19 @@ inline int load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
   static_assert(true, "require a semicolon after the macro")
 
 } // namespace fine
+
+namespace std {
+template <> struct hash<::fine::Term> {
+  size_t operator()(const ::fine::Term &term) noexcept {
+    return ::fine::hash(term);
+  }
+};
+
+template <> struct hash<::fine::Atom> {
+  size_t operator()(const ::fine::Term &term) noexcept {
+    return ::fine::hash(term);
+  }
+};
+} // namespace std
 
 #endif
