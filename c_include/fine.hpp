@@ -1128,7 +1128,7 @@ template <> struct Hasher<Term> {
 };
 } // namespace __private__
 
-template <HashAlgorithm A = HashAlgorithm::INTERNAL, typename T>
+template <HashAlgorithm A = HashAlgorithm::PHASH2, typename T>
 inline static std::uint64_t hash(const T &value, std::uint64_t salt = 0) {
   return __private__::Hasher<T>::hash(A, value, salt);
 }
@@ -1199,13 +1199,13 @@ inline static std::uint64_t hash(HashAlgorithm algorithm, const T &value,
 namespace std {
 template <> struct hash<::fine::Term> {
   size_t operator()(const ::fine::Term &term) noexcept {
-    return ::fine::hash(term);
+    return ::fine::hash<::fine::HashAlgorithm::PHASH2>(term);
   }
 };
 
 template <> struct hash<::fine::Atom> {
   size_t operator()(const ::fine::Term &term) noexcept {
-    return ::fine::hash(term);
+    return ::fine::hash<::fine::HashAlgorithm::PHASH2>(term);
   }
 };
 } // namespace std
