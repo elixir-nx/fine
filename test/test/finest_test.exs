@@ -144,6 +144,7 @@ defmodule FinestTest do
 
     test "vector" do
       assert NIF.codec_vector_int64([1, 2, 3]) == [1, 2, 3]
+      assert NIF.codec_vector_int64_alloc([1, 2, 3]) == [1, 2, 3]
 
       assert_raise ArgumentError, "decode failed, expected a list", fn ->
         NIF.codec_vector_int64(10)
@@ -305,13 +306,6 @@ defmodule FinestTest do
 
     test "shared_lock" do
       NIF.shared_mutex_shared_lock_test()
-    end
-  end
-
-  describe "allocators" do
-    test "allocators" do
-      assert NIF.allocators("abc", 16) ==
-               ["abc"] |> Stream.cycle() |> Stream.take(16) |> Enum.to_list()
     end
   end
 end

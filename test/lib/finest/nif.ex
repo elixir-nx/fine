@@ -29,6 +29,7 @@ defmodule Finest.NIF do
   def codec_variant_int64_or_string(_term), do: err!()
   def codec_tuple_int64_and_string(_term), do: err!()
   def codec_vector_int64(_term), do: err!()
+  def codec_vector_int64_alloc(_term), do: err!()
   def codec_map_atom_int64(_term), do: err!()
   def codec_resource(_term), do: err!()
   def codec_struct(_term), do: err!()
@@ -55,8 +56,6 @@ defmodule Finest.NIF do
 
   def shared_mutex_unique_lock_test(), do: err!()
   def shared_mutex_shared_lock_test(), do: err!()
-
-  def allocators(_string, _repeat), do: err!()
 
   defp err!(), do: :erlang.nif_error(:not_loaded)
 end

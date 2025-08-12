@@ -184,6 +184,14 @@ std::vector<int64_t> codec_vector_int64(ErlNifEnv *,
 }
 FINE_NIF(codec_vector_int64, 0);
 
+std::vector<int64_t, std::pmr::polymorphic_allocator<int64_t>>
+codec_vector_int64_alloc(
+    ErlNifEnv *,
+    std::vector<int64_t, std::pmr::polymorphic_allocator<int64_t>> term) {
+  return term;
+}
+FINE_NIF(codec_vector_int64_alloc, 0);
+
 std::map<fine::Atom, int64_t>
 codec_map_atom_int64(ErlNifEnv *, std::map<fine::Atom, int64_t> term) {
   return term;
@@ -333,25 +341,6 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
   return std::nullopt;
 }
 FINE_NIF(shared_mutex_shared_lock_test, 0);
-
-template <typename T> using NifVector = std::vector<T, Allocator<T>>;
-
-template <typename T>
-using NifBasicString = std::basic_string<T, std::char_traits<T>, Allocator<T>>;
-
-using NifString = NifBasicString<char>;
-
-NifVector<NifString> allocators(ErlNifEnv *, NifString string,
-                                std::uint64_t repeat) {
-  NifVector<NifString> strings;
-
-  for (std::uint64_t i = 0; i != repeat; ++i) {
-    strings.emplace_back(string);
-  }
-
-  return strings;
-}
-FINE_NIF(allocators, 0);
 
 } // namespace finest
 
