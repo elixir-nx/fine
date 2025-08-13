@@ -37,6 +37,10 @@ defmodule Finest.NIF do
   def codec_ok_int64(_term), do: err!()
   def codec_error_empty(), do: err!()
   def codec_error_string(_term), do: err!()
+  def codec_result_int64_string_ok_explicit(_term), do: err!()
+  def codec_result_int64_string_error_explicit(_term), do: err!()
+  def codec_result_int64_string_ok_implicit(_term), do: err!()
+  def codec_result_int64_string_error_conversion(), do: err!()
 
   def resource_create(_pid), do: err!()
   def resource_get(_resource), do: err!()

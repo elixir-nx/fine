@@ -142,13 +142,16 @@ private:
   ERL_NIF_TERM term;
 };
 
+template <typename T, typename E> class Result;
+
 // Represents a `:ok` tagged tuple, useful as a NIF result.
 template <typename... Args> class Ok {
 public:
-  Ok(const Args &...items) : items(items...) {}
+  explicit Ok(Args... items) : items(std::move(items)...) {}
 
 private:
   friend struct Encoder<Ok<Args...>>;
+  template <typename T, typename E> friend class Result;
 
   std::tuple<Args...> items;
 };
@@ -156,12 +159,99 @@ private:
 // Represents a `:error` tagged tuple, useful as a NIF result.
 template <typename... Args> class Error {
 public:
-  Error(const Args &...items) : items(items...) {}
+  explicit Error(Args... items) : items(std::move(items)...) {}
 
 private:
   friend struct Encoder<Error<Args...>>;
+  template <typename T, typename E> friend class Result;
 
   std::tuple<Args...> items;
+};
+
+// Represents a `{:ok, T}` or `{:error, E}` result type, useful as a NIF
+// result.
+template <typename T, typename E> class Result {
+private:
+  using StorageType = std::variant<Ok<T>, Error<E>>;
+
+public:
+  template <typename U,
+            typename = std::enable_if_t<std::is_constructible_v<T, U &&>>>
+  Result(U &&value) : storage{Ok<T>{std::forward<U>(value)}} {}
+
+  template <typename U,
+            typename = std::enable_if_t<std::is_constructible_v<T, U &&>>>
+  Result(fine::Ok<U> value)
+      : storage{Ok<T>{std::move(std::get<0>(std::move(value).items))}} {}
+
+  template <typename U,
+            typename = std::enable_if_t<std::is_constructible_v<E, U &&>>>
+  Result(fine::Error<U> value)
+      : storage{Error<E>{std::move(std::get<0>(std::move(value).items))}} {}
+
+private:
+  friend struct Encoder<Result<T, E>>;
+
+  StorageType storage;
+};
+
+// Represents a `{:ok, T}` or `:error` result type, useful as a NIF result.
+template <typename T> class Result<T, void> {
+private:
+  using StorageType = std::variant<Ok<T>, Error<T>>;
+
+public:
+  template <typename U,
+            typename = std::enable_if_t<std::is_constructible_v<T, U &&>>>
+  Result(U &&value) : storage{Ok<T>{std::forward<U>(value)}} {}
+
+  template <typename U,
+            typename = std::enable_if_t<std::is_constructible_v<T, U &&>>>
+  Result(fine::Ok<U> value)
+      : storage{Ok<T>{std::move(std::get<0>(std::move(value).items))}} {}
+
+  Result(fine::Error<> value) : storage{std::move(value)} {}
+
+private:
+  friend struct Encoder<Result<T, void>>;
+
+  StorageType storage;
+};
+
+// Represents a `:ok` or `{:error, E}` result type, useful as a NIF result.
+template <typename E> class Result<void, E> {
+private:
+  using StorageType = std::variant<Ok<>, Error<E>>;
+
+public:
+  Result(fine::Ok<> value) : storage{std::move(value)} {}
+
+  template <typename U,
+            typename = std::enable_if_t<std::is_constructible_v<E, U &&>>>
+  Result(fine::Error<U> value)
+      : storage{Error<E>{std::move(std::get<0>(std::move(value).items))}} {}
+
+private:
+  friend struct Encoder<Result<void, E>>;
+
+  StorageType storage;
+};
+
+// Represents a `:ok` or `:error` result type, useful as a NIF
+// result.
+template <> class Result<void, void> {
+private:
+  using StorageType = std::variant<Ok<>, Error<>>;
+
+public:
+  Result(fine::Ok<> value) : storage{std::move(value)} {}
+
+  Result(fine::Error<> value) : storage{std::move(value)} {}
+
+private:
+  friend struct Encoder<Result<void, void>>;
+
+  StorageType storage;
 };
 
 namespace __private__ {
@@ -911,6 +1001,12 @@ template <typename... Args> struct Encoder<Error<Args...>> {
     } else {
       return fine::encode(env, tag);
     }
+  }
+};
+
+template <typename T, typename E> struct Encoder<Result<T, E>> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const Result<T, E> &result) {
+    return fine::encode(env, result.storage);
   }
 };
 

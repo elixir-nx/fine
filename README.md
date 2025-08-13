@@ -469,8 +469,59 @@ namespace atoms {
 When it comes to NIFs, errors often indicate unexpected failures and
 raising an exception makes sense, however you may also want to handle
 certain errors gracefully by returning `:ok`/`:error` tuples, similarly
-to usual Elixir functions. Fine provides `Ok<Args...>` and `Error<Args...>`
-types for this purpose.
+to usual Elixir functions. Fine provides `Result<T, E>` coupled with
+`fine::Ok<Args...>` and `fine::Error<Args...>` for this purpose.
+
+```c++
+// A successful value can be returned directly:
+fine::Result<int64_t, std::string> example()
+{
+  // Here, a `uint16_t` is implicitly converted to `fine::Ok<int64_t>`.
+  return UINT16_C(42);
+}
+// {:ok, 42}
+
+// A successful value can be explicitly typed:
+fine::Result<int64_t, std::string> example()
+{
+  // Here, `fine::Ok<int>` is implicitly converted to `fine::Ok<int64_t>`.
+  return fine::Ok/*<int>*/(201702);
+}
+// {:ok, 201_702}
+
+// An error must be explicitly typed using `fine:Error<Args...>`:
+fine::Result<int64_t, std::string> example()
+{ 
+  return fine::Error<std::string>("something went wrong");
+}
+// {:error, "something went wrong"}
+
+// An error can be implicitly converted if the underlying type supports it:
+fine::Result<int64_t, std::string> example()
+{
+  // Here, `fine::Error<const char[26]>` is implicitly converted to `fine::Error<std::string>`.
+  return fine::Error("something else went wrong");
+}
+// {:error, "something else went wrong"}
+
+// The error type can be `void`:
+fine::Result<int64_t, void> example()
+{
+  return fine::Error();
+}
+// :error
+
+// The result type can be `void`:
+fine::Result<void, std::string> example()
+{
+  // With a `void` result type, `fine::Ok<>` must be returned.
+  return fine::Ok();
+}
+// :ok
+```
+
+`fine::Result<T, E>` is built on the `Ok<Args...>` and `Error<Args...>` types,
+which allow for more than 1 value in the encoded tagged tuples:
 
 ```c++
 fine::Ok<>()
@@ -479,28 +530,28 @@ fine::Ok<>()
 fine::Ok<int64_t>(1)
 // {:ok, 1}
 
+fine::Ok<int64_t, bool>(2, true)
+// {:ok, 2, true}
+
 fine::Error<>()
 // :error
 
-fine::Error<std::string>("something went wrong")
-// {:error, "something went wrong"}
+fine::Error<std::string, int64_t>("something went wrong", 42)
+// {:error, "something went wrong", 42}
 ```
 
 You can use `std::variant` to express a union of possible result types
-a NIF may return:
+using `fine::Ok<Args...>` and `fine::Error<Args...>` directly if needed:
 
 ```c++
-std::variant<fine::Ok<int64_t>, fine::Error<std::string>> find_meaning(ErlNifEnv *env) {
-  if (...) {
-    return fine::Error<std::string>("something went wrong");
+std::variant<fine::Ok<int64_t, int64_t>, fine::Error<std::string, int64_t, int64_t>> divmod(ErlNifEnv *env, int64_t a, int64_t b) {
+  if (b == 0) {
+    return fine::Error<std::string>("division by zero", a, b);
   }
 
-  return fine::Ok<int64_t>(42);
+  return fine::Ok<int64_t, int64_t>(a / b, a % b);
 }
 ```
-
-Note that if you use a particular union frequently, it may be convenient
-to define a type alias with `using`/`typedef` to keep signatures brief.
 
 ## Synchronization
 

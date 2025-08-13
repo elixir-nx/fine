@@ -171,6 +171,30 @@ fine::Ok<int64_t> codec_ok_int64(ErlNifEnv *, int64_t term) {
 }
 FINE_NIF(codec_ok_int64, 0);
 
+fine::Result<int64_t, std::string>
+codec_result_int64_string_ok_explicit(ErlNifEnv *, int64_t term) {
+  return fine::Ok<int64_t>{term};
+}
+FINE_NIF(codec_result_int64_string_ok_explicit, 0);
+
+fine::Result<int64_t, std::string>
+codec_result_int64_string_error_explicit(ErlNifEnv *, std::string term) {
+  return fine::Error<std::string>{term};
+}
+FINE_NIF(codec_result_int64_string_error_explicit, 0);
+
+fine::Result<int64_t, std::string>
+codec_result_int64_string_ok_implicit(ErlNifEnv *, int64_t term) {
+  return static_cast<int32_t>(term);
+}
+FINE_NIF(codec_result_int64_string_ok_implicit, 0);
+
+fine::Result<int64_t, std::string>
+codec_result_int64_string_error_conversion(ErlNifEnv *) {
+  return fine::Error{"constant string"};
+}
+FINE_NIF(codec_result_int64_string_error_conversion, 0);
+
 fine::Error<> codec_error_empty(ErlNifEnv *) { return fine::Error(); }
 FINE_NIF(codec_error_empty, 0);
 

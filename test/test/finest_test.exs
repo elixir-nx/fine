@@ -217,6 +217,16 @@ defmodule FinestTest do
       assert NIF.codec_error_empty() == :error
       assert NIF.codec_error_string("this is the reason") == {:error, "this is the reason"}
     end
+
+    test "ok result" do
+      assert NIF.codec_result_int64_string_ok_explicit(42) == {:ok, 42}
+      assert NIF.codec_result_int64_string_ok_implicit(201_703) == {:ok, 201_703}
+    end
+
+    test "error result" do
+      assert NIF.codec_result_int64_string_error_explicit("some error") == {:error, "some error"}
+      assert NIF.codec_result_int64_string_error_conversion() == {:error, "constant string"}
+    end
   end
 
   describe "resource" do
