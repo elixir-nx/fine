@@ -353,9 +353,15 @@ defmodule FinestTest do
   end
 
   describe "hash" do
-    test "phash2" do
-      for elem <- [42, "fine", ["it", %{"should" => {"just", "work"}}]] do
-        assert NIF.hash_test(elem) == :erlang.phash2(elem)
+    test "term" do
+      for value <- [42, "fine", ["it", %{"should" => {"just", "work"}}], :atom] do
+        assert NIF.term_hash_test(value) == NIF.term_hash_test(value)
+      end
+    end
+
+    test "atom" do
+      for value <- [:ok, :error, :"with spaces", Enum, nil, true, false] do
+        assert NIF.atom_hash_test(value) == NIF.atom_hash_test(value)
       end
     end
   end

@@ -1,5 +1,6 @@
 #include <cstring>
 #include <exception>
+#include <functional>
 #include <memory_resource>
 #include <optional>
 #include <stdexcept>
@@ -355,12 +356,15 @@ bool compare_ge(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
 }
 FINE_NIF(compare_ge, 0);
 
-std::uint64_t hash_test(ErlNifEnv *, fine::Term term) noexcept {
-  // Ensure the use of PHASH2. INTERNAL is not guaranteed to be stable across
-  // ERTS instances, even less so ERTS versions.
-  return fine::hash<fine::HashAlgorithm::PHASH2>(term);
+std::uint64_t term_hash_test(ErlNifEnv *, fine::Term term) noexcept {
+  return std::invoke(std::hash<fine::Term>{}, term);
 }
-FINE_NIF(hash_test, 0);
+FINE_NIF(term_hash_test, 0);
+
+std::uint64_t atom_hash_test(ErlNifEnv *, fine::Atom atom) noexcept {
+  return std::invoke(std::hash<fine::Atom>{}, atom);
+}
+FINE_NIF(atom_hash_test, 0);
 
 } // namespace finest
 
