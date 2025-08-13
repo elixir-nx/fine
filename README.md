@@ -32,6 +32,9 @@ NIFs in C++.
 
 - STL compatible Erlang-backend mutex and rwlock.
 
+- Compatible with STL container allocators and polymorphic memory
+  resources.
+
 ## Motivation
 
 Some projects make extensive use of NIFs, where using the C API results
@@ -131,28 +134,28 @@ auto message = fine::decode<std::string>(env, term);
 
 Fine provides implementations for the following types:
 
-| Type                                 | Encoder | Decoder |
-| ------------------------------------ | ------- | ------- |
-| `fine::Term`                         | x       | x       |
-| `int64_t`                            | x       | x       |
-| `uint64_t`                           | x       | x       |
-| `double`                             | x       | x       |
-| `bool`                               | x       | x       |
-| `ErlNifPid`                          | x       | x       |
-| `ErlNifBinary`                       | x       | x       |
-| `std::string_view`                   | x       | x       |
-| `std::string`                        | x       | x       |
-| `fine::Atom`                         | x       | x       |
-| `std::nullopt_t`                     | x       |         |
-| `std::optional<T>`                   | x       | x       |
-| `std::variant<Args...>`              | x       | x       |
-| `std::tuple<Args...>`                | x       | x       |
-| `std::vector<T>`                     | x       | x       |
-| `std::map<K, V>`                     | x       | x       |
-| `fine::ResourcePtr<T>`               | x       | x       |
-| `T` with [struct metadata](#structs) | x       | x       |
-| `fine::Ok<Args...>`                  | x       |         |
-| `fine::Error<Args...>`               | x       |         |
+| C++ Type                             | Encoder | Decoder | Elixir Type                 |
+| ------------------------------------ | ------- | ------- | --------------------------- |
+| `fine::Term`                         | x       | x       | `term`                      |
+| `int64_t`                            | x       | x       | `integer`                   |
+| `uint64_t`                           | x       | x       | `non_neg_integer`           |
+| `double`                             | x       | x       | `float`                     |
+| `bool`                               | x       | x       | `boolean`                   |
+| `ErlNifPid`                          | x       | x       | `pid`                       |
+| `ErlNifBinary`                       | x       | x       | `binary`                    |
+| `std::string_view`                   | x       | x       | `binary`                    |
+| `std::string`                        | x       | x       | `binary`                    |
+| `fine::Atom`                         | x       | x       | `atom`                      |
+| `std::nullopt_t`                     | x       |         | `nil`                       |
+| `std::optional<T>`                   | x       | x       | `a \| nil`                  |
+| `std::variant<Args...>`              | x       | x       | `a \| b \| ... \| c`        |
+| `std::tuple<Args...>`                | x       | x       | `{a, b, ..., c}`            |
+| `std::vector<T>`                     | x       | x       | `list(a)`                   |
+| `std::map<K, V>`                     | x       | x       | `%{k => v}`                 |
+| `fine::ResourcePtr<T>`               | x       | x       | `reference`                 |
+| `T` with [struct metadata](#structs) | x       | x       | `%a{}`                      |
+| `fine::Ok<Args...>`                  | x       |         | `{:ok, ...}`                |
+| `fine::Error<Args...>`               | x       |         | `{:error, ...}`             |
 
 > #### ERL_NIF_TERM {: .warning}
 >
@@ -557,6 +560,38 @@ const char* my_object__name(struct my_object*);
 
 fine::SharedMutex my_object_rwlock("my_lib", "my_object", my_object__name(my_object));
 ```
+## Allocators
+
+For compatibility with the STL, fine supports stateless allocators when
+decoding values, while also supporting stateful allocators when encoding
+values. The following shows how a custom `MyAllocator` allocator and
+`my_memory_resource` memory resource can be used in conjunction with fine:
+
+```c++
+template<typename T>
+struct MyAllocator { ... };
+
+std::pmr::memory_resource* my_memory_resource = ...;
+
+std::vector<std::pmr::string, MyAllocator<std::pmr::string>> repeat_string(
+    ErlNifEnv *,
+    std::basic_string<char, std::char_traits<char>, MyAllocator<char>>
+        string,
+    std::uint64_t repeat) {
+  std::vector<std::pmr::string, MyAllocator<std::pmr::string>> strings;
+
+  for (std::uint64_t i = 0; i != repeat; ++i) {
+    strings.emplace_back(std::pmr::string(string, my_memory_resource));
+  }
+
+  return strings;
+}
+FINE_NIF(repeat_string, 0);
+```
+
+Attempting to decode STL containers making use of `std::pmr::polymorphic_allocator`
+will result in the `std::pmr::get_default_resource()` memory resource being
+used.
 
 <!-- Docs -->
 

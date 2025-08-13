@@ -82,6 +82,10 @@ defmodule FinestTest do
       assert NIF.codec_string(<<0, 1, 2>>) == <<0, 1, 2>>
       assert NIF.codec_string(<<>>) == <<>>
 
+      assert NIF.codec_string_alloc("hello world") == "hello world"
+      assert NIF.codec_string_alloc(<<0, 1, 2>>) == <<0, 1, 2>>
+      assert NIF.codec_string_alloc(<<>>) == <<>>
+
       assert_raise ArgumentError, "decode failed, expected a binary", fn ->
         NIF.codec_string(1)
       end
@@ -144,6 +148,7 @@ defmodule FinestTest do
 
     test "vector" do
       assert NIF.codec_vector_int64([1, 2, 3]) == [1, 2, 3]
+      assert NIF.codec_vector_int64_alloc([1, 2, 3]) == [1, 2, 3]
 
       assert_raise ArgumentError, "decode failed, expected a list", fn ->
         NIF.codec_vector_int64(10)
@@ -156,6 +161,7 @@ defmodule FinestTest do
 
     test "map" do
       assert NIF.codec_map_atom_int64(%{hello: 1, world: 2}) == %{hello: 1, world: 2}
+      assert NIF.codec_map_atom_int64_alloc(%{hello: 1, world: 2}) == %{hello: 1, world: 2}
 
       assert_raise ArgumentError, "decode failed, expected a map", fn ->
         NIF.codec_map_atom_int64(10)
