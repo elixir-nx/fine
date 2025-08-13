@@ -142,27 +142,78 @@ private:
   ERL_NIF_TERM term;
 };
 
+namespace __private__ {
+template <class T> struct UnwrapRefwrapper {
+  using type = T;
+};
+
+template <class T> struct UnwrapRefwrapper<std::reference_wrapper<T>> {
+  using type = T &;
+};
+
+template <class T>
+using UnwrapDecayType =
+    typename UnwrapRefwrapper<typename std::decay<T>::type>::type;
+} // namespace __private__
+
 // Represents a `:ok` tagged tuple, useful as a NIF result.
 template <typename... Args> class Ok {
 public:
-  Ok(const Args &...items) : items(items...) {}
+  using Items = std::tuple<Args...>;
+
+  Ok(Items &&items) : m_items(std::forward<Items>(items)) {}
+
+  template <typename... UArgs>
+  Ok(const Ok<UArgs...> &other) : m_items{other.items()} {}
+
+  template <typename... UArgs>
+  Ok(Ok<UArgs...> &&other) : m_items{other.items()} {}
+
+  const Items &items() const & noexcept { return m_items; }
+
+  Items &items() & noexcept { return m_items; }
+
+  Items &&items() && noexcept { return m_items; }
 
 private:
-  friend struct Encoder<Ok<Args...>>;
-
-  std::tuple<Args...> items;
+  std::tuple<Args...> m_items;
 };
 
 // Represents a `:error` tagged tuple, useful as a NIF result.
 template <typename... Args> class Error {
 public:
-  Error(const Args &...items) : items(items...) {}
+  using Items = std::tuple<Args...>;
+
+  Error(Items &&items) : m_items(std::forward<Items>(items)) {}
+
+  template <typename... UArgs>
+  Error(const Error<UArgs...> &other) : m_items{other.items()} {}
+
+  template <typename... UArgs>
+  Error(Error<UArgs...> &&other) : m_items{other.items()} {}
+
+  const Items &items() const & noexcept { return m_items; }
+
+  Items &items() & noexcept { return m_items; }
+
+  Items &&items() && noexcept { return m_items; }
 
 private:
-  friend struct Encoder<Error<Args...>>;
-
-  std::tuple<Args...> items;
+  std::tuple<Args...> m_items;
 };
+
+template <typename... Args>
+inline static Ok<__private__::UnwrapDecayType<Args>...> ok(Args &&...args) {
+  return Ok<__private__::UnwrapDecayType<Args>...>{
+      std::make_tuple(std::forward<Args>(args)...)};
+}
+
+template <typename... Args>
+inline static Error<__private__::UnwrapDecayType<Args>...>
+error(Args &&...args) {
+  return Error<__private__::UnwrapDecayType<Args>...>{
+      std::make_tuple(std::forward<Args>(args)...)};
+}
 
 namespace __private__ {
 template <typename T> struct ResourceWrapper {
@@ -895,7 +946,7 @@ template <typename... Args> struct Encoder<Ok<Args...>> {
     auto tag = __private__::atoms::ok;
 
     if constexpr (sizeof...(Args) > 0) {
-      return fine::encode(env, std::tuple_cat(std::tuple(tag), ok.items));
+      return fine::encode(env, std::tuple_cat(std::tuple(tag), ok.items()));
     } else {
       return fine::encode(env, tag);
     }
@@ -907,7 +958,7 @@ template <typename... Args> struct Encoder<Error<Args...>> {
     auto tag = __private__::atoms::error;
 
     if constexpr (sizeof...(Args) > 0) {
-      return fine::encode(env, std::tuple_cat(std::tuple(tag), error.items));
+      return fine::encode(env, std::tuple_cat(std::tuple(tag), error.items()));
     } else {
       return fine::encode(env, tag);
     }

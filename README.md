@@ -470,19 +470,28 @@ When it comes to NIFs, errors often indicate unexpected failures and
 raising an exception makes sense, however you may also want to handle
 certain errors gracefully by returning `:ok`/`:error` tuples, similarly
 to usual Elixir functions. Fine provides `Ok<Args...>` and `Error<Args...>`
-types for this purpose.
+types for this purpose, along with their respective factories `fine::ok` and
+`fine::error`:
 
 ```c++
-fine::Ok<>()
+fine::Ok<> example() {
+  return fine::ok();
+}
 // :ok
 
-fine::Ok<int64_t>(1)
+fine::Ok<int64_t> example() {
+  return fine::ok(1); // implicit conversion
+}
 // {:ok, 1}
 
-fine::Error<>()
+fine::Error<> example() {
+  return fine::error();
+}
 // :error
 
-fine::Error<std::string>("something went wrong")
+fine::Error<std::string> example() {
+  return fine::error("something went wrong"); // implicit conversion
+}
 // {:error, "something went wrong"}
 ```
 
@@ -492,10 +501,10 @@ a NIF may return:
 ```c++
 std::variant<fine::Ok<int64_t>, fine::Error<std::string>> find_meaning(ErlNifEnv *env) {
   if (...) {
-    return fine::Error<std::string>("something went wrong");
+    return fine::error("something went wrong");
   }
 
-  return fine::Ok<int64_t>(42);
+  return fine::ok(42);
 }
 ```
 
