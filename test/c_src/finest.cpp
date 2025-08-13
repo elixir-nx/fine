@@ -144,32 +144,32 @@ FINE_NIF(codec_tuple_int64_and_string, 0);
 
 Result<std::string, int64_t> codec_result_string_int64_ok(ErlNifEnv *,
                                                           std::string term) {
-  return fine::ok(term);
+  return fine::Ok(term);
 }
 FINE_NIF(codec_result_string_int64_ok, 0);
 
 Result<std::string, int64_t> codec_result_string_int64_error(ErlNifEnv *,
                                                              int64_t term) {
-  return fine::error(term);
+  return fine::Error(term);
 }
 FINE_NIF(codec_result_string_int64_error, 0);
 
 Result<std::string, int64_t>
 codec_result_string_int64_ok_conversion(ErlNifEnv *) {
-  return fine::ok("fine");
+  return fine::Ok("fine");
 }
 FINE_NIF(codec_result_string_int64_ok_conversion, 0);
 
 Result<std::string, int64_t>
 codec_result_string_int64_error_conversion(ErlNifEnv *) {
   uint16_t result = 42;
-  return fine::error(result);
+  return fine::Error(result);
 }
 FINE_NIF(codec_result_string_int64_error_conversion, 0);
 
 std::variant<fine::Ok<int64_t, std::string>, fine::Error<>>
 codec_result_int64_string_void_ok_conversion(ErlNifEnv *) {
-  return fine::ok(static_cast<int32_t>(201702), "c++17");
+  return fine::Ok(static_cast<int32_t>(201702), "c++17");
 }
 FINE_NIF(codec_result_int64_string_void_ok_conversion, 0);
 
@@ -197,19 +197,19 @@ FINE_NIF(codec_struct, 0);
 ExError codec_struct_exception(ErlNifEnv *, ExError term) { return term; }
 FINE_NIF(codec_struct_exception, 0);
 
-fine::Ok<> codec_ok_empty(ErlNifEnv *) { return fine::ok(); }
+fine::Ok<> codec_ok_empty(ErlNifEnv *) { return fine::Ok(); }
 FINE_NIF(codec_ok_empty, 0);
 
 fine::Ok<int64_t> codec_ok_int64(ErlNifEnv *, int64_t term) {
-  return fine::ok(term);
+  return fine::Ok(term);
 }
 FINE_NIF(codec_ok_int64, 0);
 
-fine::Error<> codec_error_empty(ErlNifEnv *) { return fine::error(); }
+fine::Error<> codec_error_empty(ErlNifEnv *) { return fine::Error(); }
 FINE_NIF(codec_error_empty, 0);
 
 fine::Error<std::string> codec_error_string(ErlNifEnv *, std::string term) {
-  return fine::error(term);
+  return fine::Error(term);
 }
 FINE_NIF(codec_error_string, 0);
 

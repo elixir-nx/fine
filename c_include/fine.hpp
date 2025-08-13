@@ -142,38 +142,27 @@ private:
   ERL_NIF_TERM term;
 };
 
-namespace __private__ {
-template <class T> struct UnwrapRefwrapper {
-  using type = T;
-};
-
-template <class T> struct UnwrapRefwrapper<std::reference_wrapper<T>> {
-  using type = T &;
-};
-
-template <class T>
-using UnwrapDecayType =
-    typename UnwrapRefwrapper<typename std::decay<T>::type>::type;
-} // namespace __private__
-
 // Represents a `:ok` tagged tuple, useful as a NIF result.
 template <typename... Args> class Ok {
 public:
   using Items = std::tuple<Args...>;
 
-  Ok(Items &&items) : m_items(std::forward<Items>(items)) {}
+  template <typename = std::enable_if_t<std::is_default_constructible_v<Items>>>
+  Ok() : m_items() {}
+
+  explicit Ok(Args... items) : m_items{std::move(items)...} {}
 
   template <typename... UArgs>
-  Ok(const Ok<UArgs...> &other) : m_items{other.items()} {}
+  Ok(const Ok<UArgs...> &other) : m_items(other.items()) {}
 
   template <typename... UArgs>
-  Ok(Ok<UArgs...> &&other) : m_items{other.items()} {}
+  Ok(Ok<UArgs...> &&other) : m_items(std::move(other).items()) {}
 
   const Items &items() const & noexcept { return m_items; }
 
   Items &items() & noexcept { return m_items; }
 
-  Items &&items() && noexcept { return m_items; }
+  Items &&items() && noexcept { return std::move(m_items); }
 
 private:
   std::tuple<Args...> m_items;
@@ -184,36 +173,26 @@ template <typename... Args> class Error {
 public:
   using Items = std::tuple<Args...>;
 
-  Error(Items &&items) : m_items(std::forward<Items>(items)) {}
+  template <typename = std::enable_if_t<std::is_default_constructible_v<Items>>>
+  Error() : m_items() {}
+
+  explicit Error(Args... items) : m_items{std::move(items)...} {}
 
   template <typename... UArgs>
-  Error(const Error<UArgs...> &other) : m_items{other.items()} {}
+  Error(const Error<UArgs...> &other) : m_items(other.items()) {}
 
   template <typename... UArgs>
-  Error(Error<UArgs...> &&other) : m_items{other.items()} {}
+  Error(Error<UArgs...> &&other) : m_items(std::move(other).items()) {}
 
   const Items &items() const & noexcept { return m_items; }
 
   Items &items() & noexcept { return m_items; }
 
-  Items &&items() && noexcept { return m_items; }
+  Items &&items() && noexcept { return std::move(m_items); }
 
 private:
   std::tuple<Args...> m_items;
 };
-
-template <typename... Args>
-inline static Ok<__private__::UnwrapDecayType<Args>...> ok(Args &&...args) {
-  return Ok<__private__::UnwrapDecayType<Args>...>{
-      std::make_tuple(std::forward<Args>(args)...)};
-}
-
-template <typename... Args>
-inline static Error<__private__::UnwrapDecayType<Args>...>
-error(Args &&...args) {
-  return Error<__private__::UnwrapDecayType<Args>...>{
-      std::make_tuple(std::forward<Args>(args)...)};
-}
 
 namespace __private__ {
 template <typename T> struct ResourceWrapper {
