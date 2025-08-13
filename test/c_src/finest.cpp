@@ -295,35 +295,35 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
 }
 FINE_NIF(shared_mutex_shared_lock_test, 0);
 
-bool compare_eq_test(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
+bool compare_eq(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs == rhs;
 }
-FINE_NIF(compare_eq_test, 0);
+FINE_NIF(compare_eq, 0);
 
-bool compare_ne_test(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
+bool compare_ne(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs != rhs;
 }
-FINE_NIF(compare_ne_test, 0);
+FINE_NIF(compare_ne, 0);
 
-bool compare_lt_test(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
+bool compare_lt(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs < rhs;
 }
-FINE_NIF(compare_lt_test, 0);
+FINE_NIF(compare_lt, 0);
 
-bool compare_le_test(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
+bool compare_le(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs <= rhs;
 }
-FINE_NIF(compare_le_test, 0);
+FINE_NIF(compare_le, 0);
 
-bool compare_gt_test(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
+bool compare_gt(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs > rhs;
 }
-FINE_NIF(compare_gt_test, 0);
+FINE_NIF(compare_gt, 0);
 
-bool compare_ge_test(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
+bool compare_ge(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs >= rhs;
 }
-FINE_NIF(compare_ge_test, 0);
+FINE_NIF(compare_ge, 0);
 } // namespace finest
 
 FINE_INIT("Elixir.Finest.NIF");

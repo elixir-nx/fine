@@ -56,12 +56,12 @@ defmodule Finest.NIF do
   def shared_mutex_unique_lock_test(), do: err!()
   def shared_mutex_shared_lock_test(), do: err!()
 
-  def compare_eq_test(_lhs, _rhs), do: err!()
-  def compare_ne_test(_lhs, _rhs), do: err!()
-  def compare_lt_test(_lhs, _rhs), do: err!()
-  def compare_le_test(_lhs, _rhs), do: err!()
-  def compare_gt_test(_lhs, _rhs), do: err!()
-  def compare_ge_test(_lhs, _rhs), do: err!()
+  def compare_eq(_lhs, _rhs), do: err!()
+  def compare_ne(_lhs, _rhs), do: err!()
+  def compare_lt(_lhs, _rhs), do: err!()
+  def compare_le(_lhs, _rhs), do: err!()
+  def compare_gt(_lhs, _rhs), do: err!()
+  def compare_ge(_lhs, _rhs), do: err!()
 
   defp err!(), do: :erlang.nif_error(:not_loaded)
 end
