@@ -77,44 +77,6 @@ struct ExError {
   static constexpr auto is_exception = true;
 };
 
-template <typename T> struct Allocator {
-  using value_type = std::decay_t<T>;
-
-  Allocator() noexcept = default;
-
-  template <typename U> Allocator(const Allocator<U> &) noexcept {}
-
-  value_type *allocate(std::size_t n, const void *hint = nullptr) {
-    (void)hint;
-
-    void *ptr = enif_alloc(sizeof(T) * n);
-    if (ptr == nullptr) {
-      throw std::bad_alloc();
-    }
-    return reinterpret_cast<value_type *>(ptr);
-  }
-
-  void deallocate(value_type *ptr, std::size_t n) {
-    (void)n;
-
-    enif_free(ptr);
-  }
-
-  template <typename U, typename... Args> void construct(U *p, Args &&...args) {
-    new (p) U(std::forward<Args>(args)...);
-  }
-
-  template <typename U> void destruct(U *p) { std::destroy_at(p); }
-
-  friend bool operator==(const Allocator &, const Allocator &) noexcept {
-    return true;
-  }
-
-  friend bool operator!=(const Allocator &, const Allocator &) noexcept {
-    return false;
-  }
-};
-
 int64_t add(ErlNifEnv *, int64_t x, int64_t y) { return x + y; }
 FINE_NIF(add, 0);
 
