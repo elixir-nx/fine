@@ -381,14 +381,14 @@ inline Term make_new_binary(ErlNifEnv *env, const char *data, size_t size) {
 //
 // The given type must have a specialized Decoder<T> implementation.
 template <typename T> T decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-  return Decoder<T>::decode(env, term);
+  return Decoder<std::remove_cv_t<T>>::decode(env, term);
 }
 
 // Encodes the given value as a Erlang term.
 //
 // The value type must have a specialized Encoder<T> implementation.
 template <typename T> ERL_NIF_TERM encode(ErlNifEnv *env, const T &value) {
-  return Encoder<T>::encode(env, value);
+  return Encoder<std::remove_cv_t<T>>::encode(env, value);
 }
 
 // We want decode to return the value, and since the argument types
@@ -473,9 +473,10 @@ template <> struct Decoder<ErlNifPid> {
     }
     if (!enif_get_local_pid(env, term, &pid)) {
       // If the term is a PID and it is not local, it means it's a remote PID.
-      throw std::invalid_argument(
-          "decode failed, expected a local pid, but got a remote one. NIFs can "
-          "only send messages to local PIDs and remote PIDs cannot be decoded");
+      throw std::invalid_argument("decode failed, expected a local pid, but "
+                                  "got a remote one. NIFs can "
+                                  "only send messages to local PIDs and "
+                                  "remote PIDs cannot be decoded");
     }
     return pid;
   }
@@ -591,6 +592,25 @@ private:
   }
 };
 
+template <typename T1, typename T2> struct Decoder<std::pair<T1, T2>> {
+  static std::pair<T1, T2> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    int size;
+    const ERL_NIF_TERM *terms;
+    if (!enif_get_tuple(env, term, &size, &terms)) {
+      throw std::invalid_argument("decode failed, expected a tuple");
+    }
+
+    if (size != 2) {
+      throw std::invalid_argument(
+          "decode failed, expected tuple to have 2 elements, but had " +
+          std::to_string(size));
+    }
+
+    return std::make_pair(fine::decode<T1>(env, terms[0]),
+                          fine::decode<T2>(env, terms[1]));
+  }
+};
+
 template <typename T, typename Alloc> struct Decoder<std::vector<T, Alloc>> {
   static std::vector<T, Alloc> decode(ErlNifEnv *env,
                                       const ERL_NIF_TERM &term) {
@@ -676,6 +696,68 @@ struct Decoder<std::unordered_map<K, V, Hash, Pred, Alloc>> {
       map.insert_or_assign(std::move(key), std::move(value));
 
       enif_map_iterator_next(env, &iter);
+    }
+
+    return map;
+  }
+
+private:
+  struct IterCleanup {
+    ErlNifEnv *env;
+    ErlNifMapIterator iter;
+
+    ~IterCleanup() { enif_map_iterator_destroy(env, &iter); }
+  };
+};
+
+template <typename K, typename V, typename Compare, typename Alloc>
+struct Decoder<std::multimap<K, V, Compare, Alloc>> {
+  static std::multimap<K, V, Compare, Alloc> decode(ErlNifEnv *env,
+                                                    const ERL_NIF_TERM &term) {
+    unsigned int length;
+
+    if (!enif_get_list_length(env, term, &length)) {
+      throw std::invalid_argument("decode failed, expected a list");
+    }
+
+    std::multimap<K, V, Compare, Alloc> map;
+
+    auto list = term;
+
+    ERL_NIF_TERM head, tail;
+    while (enif_get_list_cell(env, list, &head, &tail)) {
+      auto entry = fine::decode<std::pair<const K, V>>(env, head);
+
+      map.emplace(std::move(entry));
+
+      list = tail;
+    }
+
+    return map;
+  }
+};
+
+template <typename K, typename V, typename Hash, typename Pred, typename Alloc>
+struct Decoder<std::unordered_multimap<K, V, Hash, Pred, Alloc>> {
+  static std::unordered_multimap<K, V, Hash, Pred, Alloc>
+  decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    unsigned int length;
+
+    if (!enif_get_list_length(env, term, &length)) {
+      throw std::invalid_argument("decode failed, expected a list");
+    }
+
+    std::unordered_multimap<K, V, Hash, Pred, Alloc> map;
+
+    auto list = term;
+
+    ERL_NIF_TERM head, tail;
+    while (enif_get_list_cell(env, list, &head, &tail)) {
+      auto entry = fine::decode<std::pair<const K, V>>(env, head);
+
+      map.emplace(std::move(entry));
+
+      list = tail;
     }
 
     return map;
@@ -892,6 +974,14 @@ private:
   }
 };
 
+template <typename T1, typename T2> struct Encoder<std::pair<T1, T2>> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const std::pair<T1, T2> &pair) {
+    const auto first = fine::encode<T1>(env, pair.first);
+    const auto second = fine::encode<T2>(env, pair.second);
+    return enif_make_tuple(env, 2, first, second);
+  }
+};
+
 template <typename T, typename Alloc> struct Encoder<std::vector<T, Alloc>> {
   static ERL_NIF_TERM encode(ErlNifEnv *env,
                              const std::vector<T, Alloc> &vector) {
@@ -953,6 +1043,39 @@ struct Encoder<std::unordered_map<K, V, Hash, Pred, Alloc>> {
     }
 
     return map_term;
+  }
+};
+
+template <typename K, typename V, typename Compare, typename Alloc>
+struct Encoder<std::multimap<K, V, Compare, Alloc>> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env,
+                             const std::multimap<K, V, Compare, Alloc> &map) {
+    auto terms = std::vector<ERL_NIF_TERM>();
+    terms.reserve(map.size());
+
+    for (const auto &entry : map) {
+      terms.emplace_back(fine::encode(env, entry));
+    }
+
+    return enif_make_list_from_array(env, terms.data(),
+                                     static_cast<unsigned int>(terms.size()));
+  }
+};
+
+template <typename K, typename V, typename Hash, typename Pred, typename Alloc>
+struct Encoder<std::unordered_multimap<K, V, Hash, Pred, Alloc>> {
+  static ERL_NIF_TERM
+  encode(ErlNifEnv *env,
+         const std::unordered_multimap<K, V, Hash, Pred, Alloc> &map) {
+    auto terms = std::vector<ERL_NIF_TERM>();
+    terms.reserve(map.size());
+
+    for (const auto &entry : map) {
+      terms.emplace_back(fine::encode(env, entry));
+    }
+
+    return enif_make_list_from_array(env, terms.data(),
+                                     static_cast<unsigned int>(terms.size()));
   }
 };
 

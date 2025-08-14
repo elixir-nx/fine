@@ -153,6 +153,8 @@ Fine provides implementations for the following types:
 | `std::vector<T>`                     | x       | x       | `list(a)`                   |
 | `std::map<K, V>`                     | x       | x       | `%{k => v}`                 |
 | `std::unordered_map<K, V>`           | x       | x       | `%{k => v}`                 |
+| `std::multimap<K ,V>`                | x       | x       | `list({k, v})`              |
+| `std::unordered_multimap<K ,V>`      | x       | x       | `list({k, v})`              |
 | `fine::ResourcePtr<T>`               | x       | x       | `reference`                 |
 | `T` with [struct metadata](#structs) | x       | x       | `%a{}`                      |
 | `fine::Ok<Args...>`                  | x       |         | `{:ok, ...}`                |

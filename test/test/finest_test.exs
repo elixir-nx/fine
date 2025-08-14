@@ -233,6 +233,78 @@ defmodule FinestTest do
       end
     end
 
+    test "multimap" do
+      empty_multimap = []
+
+      small_multimap = [hello: 1, world: 2]
+
+      large_multimap =
+        0..64 |> Enum.map(fn x -> {:"a#{x}", x} end) |> Enum.to_list()
+
+      for multimap <- [empty_multimap, small_multimap, large_multimap] do
+        assert Enum.sort(NIF.codec_multimap_atom_int64(multimap)) == Enum.sort(multimap)
+        assert Enum.sort(NIF.codec_multimap_atom_int64_alloc(multimap)) == Enum.sort(multimap)
+        assert Enum.sort(NIF.codec_unordered_multimap_atom_int64(multimap)) == Enum.sort(multimap)
+
+        assert Enum.sort(NIF.codec_unordered_multimap_atom_int64_alloc(multimap)) ==
+                 Enum.sort(multimap)
+      end
+
+      invalid_multimap = 10
+
+      assert_raise ArgumentError, "decode failed, expected a list", fn ->
+        NIF.codec_multimap_atom_int64(invalid_multimap)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected a list", fn ->
+        NIF.codec_multimap_atom_int64_alloc(invalid_multimap)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected a list", fn ->
+        NIF.codec_unordered_multimap_atom_int64(invalid_multimap)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected a list", fn ->
+        NIF.codec_unordered_multimap_atom_int64_alloc(invalid_multimap)
+      end
+
+      multimap_with_invalid_key = [{"hello", 42}]
+
+      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+        NIF.codec_multimap_atom_int64(multimap_with_invalid_key)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+        NIF.codec_multimap_atom_int64_alloc(multimap_with_invalid_key)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+        NIF.codec_unordered_multimap_atom_int64(multimap_with_invalid_key)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+        NIF.codec_unordered_multimap_atom_int64_alloc(multimap_with_invalid_key)
+      end
+
+      multimap_with_invalid_value = [hello: 1.0]
+
+      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+        NIF.codec_multimap_atom_int64(multimap_with_invalid_value)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+        NIF.codec_multimap_atom_int64_alloc(multimap_with_invalid_value)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+        NIF.codec_unordered_multimap_atom_int64(multimap_with_invalid_value)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+        NIF.codec_unordered_multimap_atom_int64_alloc(multimap_with_invalid_value)
+      end
+    end
+
     test "resource" do
       resource = NIF.resource_create(self())
       assert is_reference(resource)
