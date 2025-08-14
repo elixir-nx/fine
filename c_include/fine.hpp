@@ -12,6 +12,7 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -652,6 +653,43 @@ private:
   };
 };
 
+template <typename K, typename V, typename Hash, typename Pred, typename Alloc>
+struct Decoder<std::unordered_map<K, V, Hash, Pred, Alloc>> {
+  static std::unordered_map<K, V, Hash, Pred, Alloc>
+  decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    std::unordered_map<K, V, Hash, Pred, Alloc> map;
+
+    ERL_NIF_TERM key_term, value_term;
+    ErlNifMapIterator iter;
+    if (!enif_map_iterator_create(env, term, &iter,
+                                  ERL_NIF_MAP_ITERATOR_FIRST)) {
+      throw std::invalid_argument("decode failed, expected a map");
+    }
+
+    // Define RAII cleanup for the iterator
+    auto cleanup = IterCleanup{env, iter};
+
+    while (enif_map_iterator_get_pair(env, &iter, &key_term, &value_term)) {
+      auto key = fine::decode<K>(env, key_term);
+      auto value = fine::decode<V>(env, value_term);
+
+      map.insert_or_assign(std::move(key), std::move(value));
+
+      enif_map_iterator_next(env, &iter);
+    }
+
+    return map;
+  }
+
+private:
+  struct IterCleanup {
+    ErlNifEnv *env;
+    ErlNifMapIterator iter;
+
+    ~IterCleanup() { enif_map_iterator_destroy(env, &iter); }
+  };
+};
+
 template <typename T> struct Decoder<ResourcePtr<T>> {
   static ResourcePtr<T> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
     void *ptr;
@@ -875,10 +913,37 @@ struct Encoder<std::map<K, V, Compare, Alloc>> {
                              const std::map<K, V, Compare, Alloc> &map) {
     auto keys = std::vector<ERL_NIF_TERM>();
     auto values = std::vector<ERL_NIF_TERM>();
+    keys.reserve(map.size());
+    values.reserve(map.size());
 
     for (const auto &[key, value] : map) {
-      keys.push_back(fine::encode(env, key));
-      values.push_back(fine::encode(env, value));
+      keys.emplace_back(fine::encode(env, key));
+      values.emplace_back(fine::encode(env, value));
+    }
+
+    ERL_NIF_TERM map_term;
+    if (!enif_make_map_from_arrays(env, keys.data(), values.data(), keys.size(),
+                                   &map_term)) {
+      throw std::runtime_error("encode failed, failed to make a map");
+    }
+
+    return map_term;
+  }
+};
+
+template <typename K, typename V, typename Hash, typename Pred, typename Alloc>
+struct Encoder<std::unordered_map<K, V, Hash, Pred, Alloc>> {
+  static ERL_NIF_TERM
+  encode(ErlNifEnv *env,
+         const std::unordered_map<K, V, Hash, Pred, Alloc> &map) {
+    auto keys = std::vector<ERL_NIF_TERM>();
+    auto values = std::vector<ERL_NIF_TERM>();
+    keys.reserve(map.size());
+    values.reserve(map.size());
+
+    for (const auto &[key, value] : map) {
+      keys.emplace_back(fine::encode(env, key));
+      values.emplace_back(fine::encode(env, value));
     }
 
     ERL_NIF_TERM map_term;
@@ -1189,13 +1254,13 @@ inline int load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
 
 namespace std {
 template <> struct hash<::fine::Term> {
-  size_t operator()(const ::fine::Term &term) noexcept {
+  size_t operator()(const ::fine::Term &term) const noexcept {
     return enif_hash(ERL_NIF_INTERNAL_HASH, term, 0);
   }
 };
 
 template <> struct hash<::fine::Atom> {
-  size_t operator()(const ::fine::Atom &atom) noexcept {
+  size_t operator()(const ::fine::Atom &atom) const noexcept {
     return std::hash<std::string_view>{}(atom.to_string());
   }
 };

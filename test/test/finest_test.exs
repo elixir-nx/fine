@@ -160,19 +160,76 @@ defmodule FinestTest do
     end
 
     test "map" do
-      assert NIF.codec_map_atom_int64(%{hello: 1, world: 2}) == %{hello: 1, world: 2}
-      assert NIF.codec_map_atom_int64_alloc(%{hello: 1, world: 2}) == %{hello: 1, world: 2}
+      small_map = %{hello: 1, world: 2}
 
-      assert_raise ArgumentError, "decode failed, expected a map", fn ->
-        NIF.codec_map_atom_int64(10)
+      empty_map = %{}
+
+      # Large maps have more than 32 elements:
+      #     https://www.erlang.org/doc/system/maps.html#how-large-maps-are-implemented
+      large_map =
+        0..64
+        |> Enum.with_index()
+        |> Map.new(fn {key, value} -> {String.to_atom("a#{key}"), value} end)
+
+      for map <- [small_map, empty_map, large_map] do
+        assert NIF.codec_map_atom_int64(map) == map
+        assert NIF.codec_map_atom_int64_alloc(map) == map
+        assert NIF.codec_unordered_map_atom_int64(map) == map
+        assert NIF.codec_unordered_map_atom_int64_alloc(map) == map
       end
 
-      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
-        NIF.codec_map_atom_int64(%{"hello" => 1})
+      for not_a_map <- [10, [], nil, Map, "map"] do
+        assert_raise ArgumentError, "decode failed, expected a map", fn ->
+          NIF.codec_map_atom_int64(not_a_map)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected a map", fn ->
+          NIF.codec_map_atom_int64_alloc(not_a_map)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected a map", fn ->
+          NIF.codec_unordered_map_atom_int64(not_a_map)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected a map", fn ->
+          NIF.codec_unordered_map_atom_int64_alloc(not_a_map)
+        end
       end
 
-      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
-        NIF.codec_map_atom_int64(%{hello: 1.0})
+      for map_with_invalid_key <- [%{"hello" => 1}, %{2 => 2}, %{{:a, "tuple"} => 3}] do
+        assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+          NIF.codec_map_atom_int64(map_with_invalid_key)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+          NIF.codec_map_atom_int64_alloc(map_with_invalid_key)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+          NIF.codec_unordered_map_atom_int64(map_with_invalid_key)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+          NIF.codec_unordered_map_atom_int64_alloc(map_with_invalid_key)
+        end
+      end
+
+      for map_with_invalid_value <- [%{hello: :world}, %{foo: "bar"}, %{cafe: {:record, 0xBABE}}] do
+        assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+          NIF.codec_map_atom_int64(map_with_invalid_value)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+          NIF.codec_map_atom_int64_alloc(map_with_invalid_value)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+          NIF.codec_unordered_map_atom_int64(map_with_invalid_value)
+        end
+
+        assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+          NIF.codec_unordered_map_atom_int64_alloc(map_with_invalid_value)
+        end
       end
     end
 
