@@ -77,6 +77,9 @@ struct ExError {
   static constexpr auto is_exception = true;
 };
 
+template <typename T, typename E>
+using Result = std::variant<fine::Ok<T>, fine::Error<E>>;
+
 int64_t add(ErlNifEnv *, int64_t x, int64_t y) { return x + y; }
 FINE_NIF(add, 0);
 
@@ -149,6 +152,37 @@ codec_tuple_int64_and_string(ErlNifEnv *,
   return term;
 }
 FINE_NIF(codec_tuple_int64_and_string, 0);
+
+Result<std::string, int64_t> codec_result_string_int64_ok(ErlNifEnv *,
+                                                          std::string term) {
+  return fine::Ok(term);
+}
+FINE_NIF(codec_result_string_int64_ok, 0);
+
+Result<std::string, int64_t> codec_result_string_int64_error(ErlNifEnv *,
+                                                             int64_t term) {
+  return fine::Error(term);
+}
+FINE_NIF(codec_result_string_int64_error, 0);
+
+Result<std::string, int64_t>
+codec_result_string_int64_ok_conversion(ErlNifEnv *) {
+  return fine::Ok("fine");
+}
+FINE_NIF(codec_result_string_int64_ok_conversion, 0);
+
+Result<std::string, int64_t>
+codec_result_string_int64_error_conversion(ErlNifEnv *) {
+  uint16_t result = 42;
+  return fine::Error(result);
+}
+FINE_NIF(codec_result_string_int64_error_conversion, 0);
+
+std::variant<fine::Ok<int64_t, std::string>, fine::Error<>>
+codec_result_int64_string_void_ok_conversion(ErlNifEnv *) {
+  return fine::Ok(static_cast<int32_t>(201702), "c++17");
+}
+FINE_NIF(codec_result_int64_string_void_ok_conversion, 0);
 
 std::vector<int64_t> codec_vector_int64(ErlNifEnv *,
                                         std::vector<int64_t> term) {

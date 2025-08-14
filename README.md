@@ -476,16 +476,24 @@ to usual Elixir functions. Fine provides `Ok<Args...>` and `Error<Args...>`
 types for this purpose.
 
 ```c++
-fine::Ok<>()
+fine::Ok<> example() {
+  return fine::Ok();
+}
 // :ok
 
-fine::Ok<int64_t>(1)
+fine::Ok<int64_t> example() {
+  return fine::Ok(1);
+}
 // {:ok, 1}
 
-fine::Error<>()
+fine::Error<> example() {
+  return fine::Error();
+}
 // :error
 
-fine::Error<std::string>("something went wrong")
+fine::Error<std::string> example() {
+  return fine::Error("something went wrong");
+}
 // {:error, "something went wrong"}
 ```
 
@@ -493,12 +501,12 @@ You can use `std::variant` to express a union of possible result types
 a NIF may return:
 
 ```c++
-std::variant<fine::Ok<int64_t>, fine::Error<std::string>> find_meaning(ErlNifEnv *env) {
-  if (...) {
-    return fine::Error<std::string>("something went wrong");
+std::variant<fine::Ok<int64_t, int64_t>, fine::Error<std::string>> divmod(ErlNifEnv *env, int64_t a, int64_t b) {
+  if (b == 0) {
+    return fine::Error("division by zero");
   }
 
-  return fine::Ok<int64_t>(42);
+  return fine::Ok(a / b, a % b);
 }
 ```
 

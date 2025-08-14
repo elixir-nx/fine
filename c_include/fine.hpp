@@ -175,23 +175,47 @@ inline static bool operator>=(const fine::Term &lhs,
 // Represents a `:ok` tagged tuple, useful as a NIF result.
 template <typename... Args> class Ok {
 public:
-  Ok(const Args &...items) : items(items...) {}
+  using Items = std::tuple<Args...>;
+
+  explicit Ok(Args... items) : m_items{std::move(items)...} {}
+
+  template <typename... UArgs>
+  Ok(const Ok<UArgs...> &other) : m_items(other.items()) {}
+
+  template <typename... UArgs>
+  Ok(Ok<UArgs...> &&other) : m_items(std::move(other).items()) {}
+
+  const Items &items() const & noexcept { return m_items; }
+
+  Items &items() & noexcept { return m_items; }
+
+  Items &&items() && noexcept { return std::move(m_items); }
 
 private:
-  friend struct Encoder<Ok<Args...>>;
-
-  std::tuple<Args...> items;
+  Items m_items;
 };
 
 // Represents a `:error` tagged tuple, useful as a NIF result.
 template <typename... Args> class Error {
 public:
-  Error(const Args &...items) : items(items...) {}
+  using Items = std::tuple<Args...>;
+
+  explicit Error(Args... items) : m_items{std::move(items)...} {}
+
+  template <typename... UArgs>
+  Error(const Error<UArgs...> &other) : m_items(other.items()) {}
+
+  template <typename... UArgs>
+  Error(Error<UArgs...> &&other) : m_items(std::move(other).items()) {}
+
+  const Items &items() const & noexcept { return m_items; }
+
+  Items &items() & noexcept { return m_items; }
+
+  Items &&items() && noexcept { return std::move(m_items); }
 
 private:
-  friend struct Encoder<Error<Args...>>;
-
-  std::tuple<Args...> items;
+  Items m_items;
 };
 
 namespace __private__ {
@@ -940,7 +964,7 @@ template <typename... Args> struct Encoder<Ok<Args...>> {
     auto tag = __private__::atoms::ok;
 
     if constexpr (sizeof...(Args) > 0) {
-      return fine::encode(env, std::tuple_cat(std::tuple(tag), ok.items));
+      return fine::encode(env, std::tuple_cat(std::tuple(tag), ok.items()));
     } else {
       return fine::encode(env, tag);
     }
@@ -952,7 +976,7 @@ template <typename... Args> struct Encoder<Error<Args...>> {
     auto tag = __private__::atoms::error;
 
     if constexpr (sizeof...(Args) > 0) {
-      return fine::encode(env, std::tuple_cat(std::tuple(tag), error.items));
+      return fine::encode(env, std::tuple_cat(std::tuple(tag), error.items()));
     } else {
       return fine::encode(env, tag);
     }
