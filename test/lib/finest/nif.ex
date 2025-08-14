@@ -71,5 +71,8 @@ defmodule Finest.NIF do
   def compare_gt(_lhs, _rhs), do: err!()
   def compare_ge(_lhs, _rhs), do: err!()
 
+  def hash_term(_term), do: err!()
+  def hash_atom(_term), do: err!()
+
   defp err!(), do: :erlang.nif_error(:not_loaded)
 end

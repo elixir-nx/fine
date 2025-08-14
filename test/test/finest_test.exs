@@ -359,4 +359,18 @@ defmodule FinestTest do
       assert NIF.compare_ge("fine", "fine")
     end
   end
+
+  describe "hash" do
+    test "term" do
+      for value <- [42, "fine", ["it", %{"should" => {"just", "work"}}], :atom] do
+        assert NIF.hash_term(value) == NIF.hash_term(value)
+      end
+    end
+
+    test "atom" do
+      for value <- [:ok, :error, :"with spaces", Enum, nil, true, false] do
+        assert NIF.hash_atom(value) == NIF.hash_atom(value)
+      end
+    end
+  end
 end

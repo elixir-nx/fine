@@ -1,5 +1,6 @@
 #include <cstring>
 #include <exception>
+#include <functional>
 #include <memory_resource>
 #include <optional>
 #include <stdexcept>
@@ -388,6 +389,17 @@ bool compare_ge(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs >= rhs;
 }
 FINE_NIF(compare_ge, 0);
+
+std::uint64_t hash_term(ErlNifEnv *, fine::Term term) noexcept {
+  return std::invoke(std::hash<fine::Term>{}, term);
+}
+FINE_NIF(hash_term, 0);
+
+std::uint64_t hash_atom(ErlNifEnv *, fine::Atom atom) noexcept {
+  return std::invoke(std::hash<fine::Atom>{}, atom);
+}
+FINE_NIF(hash_atom, 0);
+
 } // namespace finest
 
 FINE_INIT("Elixir.Finest.NIF");

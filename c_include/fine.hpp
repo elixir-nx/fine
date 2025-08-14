@@ -65,13 +65,16 @@ inline ERL_NIF_TERM make_atom(ErlNifEnv *env, const char *msg) {
 // A representation of an atom term.
 class Atom {
 public:
-  Atom(std::string name) : name(name), term(std::nullopt) {
+  Atom(std::string name) : name(std::move(name)), term(std::nullopt) {
     if (!Atom::initialized) {
       Atom::atoms.push_back(this);
     }
   }
 
-  std::string to_string() const { return this->name; }
+public:
+  const std::string &to_string() const & noexcept { return this->name; }
+
+  std::string to_string() && noexcept { return this->name; }
 
   bool operator==(const Atom &other) const { return this->name == other.name; }
 
@@ -90,6 +93,8 @@ private:
   }
 
   friend struct Encoder<Atom>;
+  friend struct Decoder<Atom>;
+  friend struct ::std::hash<Atom>;
 
   friend int __private__::load(ErlNifEnv *env, void **priv_data,
                                ERL_NIF_TERM load_info);
@@ -1181,5 +1186,19 @@ inline int load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
   static_assert(true, "require a semicolon after the macro")
 
 } // namespace fine
+
+namespace std {
+template <> struct hash<::fine::Term> {
+  size_t operator()(const ::fine::Term &term) noexcept {
+    return enif_hash(ERL_NIF_INTERNAL_HASH, term, 0);
+  }
+};
+
+template <> struct hash<::fine::Atom> {
+  size_t operator()(const ::fine::Atom &atom) noexcept {
+    return std::hash<std::string_view>{}(atom.to_string());
+  }
+};
+} // namespace std
 
 #endif
