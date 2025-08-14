@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [v0.1.4](https://github.com/elixir-nx/fine/tree/v0.1.4) (2025-08-14)
+
+### Added
+
+- Expanded encoders and decoders for STL containers to support custom allocators ([#5](https://github.com/elixir-nx/fine/pull/5))
+- Comparison operations for `fine::Term` to enable use with `std::map` ([#10](https://github.com/elixir-nx/fine/pull/10))
+- Implicit item type conversion for `fine::Ok` and `fine::Error` ([#13](https://github.com/elixir-nx/fine/pull/13))
+- Implemented `std::hash` for `fine::Term` and `fine::Atom` to enable use with `std::unordered_map` ([#11](https://github.com/elixir-nx/fine/pull/11))
+
 ## [v0.1.3](https://github.com/elixir-nx/fine/tree/v0.1.3) (2025-07-31)
 
 ### Fixed
