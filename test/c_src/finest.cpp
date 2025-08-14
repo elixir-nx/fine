@@ -5,6 +5,7 @@
 #include <optional>
 #include <stdexcept>
 #include <thread>
+#include <unordered_map>
 
 #include <erl_nif.h>
 #include <fine.hpp>
@@ -215,6 +216,26 @@ codec_map_atom_int64_alloc(
   return term;
 }
 FINE_NIF(codec_map_atom_int64_alloc, 0);
+
+std::unordered_map<fine::Atom, int64_t>
+codec_unordered_map_atom_int64(ErlNifEnv *,
+                               std::unordered_map<fine::Atom, int64_t> term) {
+  return term;
+}
+FINE_NIF(codec_unordered_map_atom_int64, 0);
+
+std::unordered_map<
+    fine::Atom, int64_t, std::hash<fine::Atom>, std::equal_to<fine::Atom>,
+    std::pmr::polymorphic_allocator<std::pair<const fine::Atom, int64_t>>>
+codec_unordered_map_atom_int64_alloc(
+    ErlNifEnv *,
+    std::unordered_map<
+        fine::Atom, int64_t, std::hash<fine::Atom>, std::equal_to<fine::Atom>,
+        std::pmr::polymorphic_allocator<std::pair<const fine::Atom, int64_t>>>
+        term) {
+  return term;
+}
+FINE_NIF(codec_unordered_map_atom_int64_alloc, 0);
 
 fine::ResourcePtr<TestResource>
 codec_resource(ErlNifEnv *, fine::ResourcePtr<TestResource> term) {

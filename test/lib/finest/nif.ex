@@ -38,6 +38,8 @@ defmodule Finest.NIF do
   def codec_vector_int64_alloc(_term), do: err!()
   def codec_map_atom_int64(_term), do: err!()
   def codec_map_atom_int64_alloc(_term), do: err!()
+  def codec_unordered_map_atom_int64(_term), do: err!()
+  def codec_unordered_map_atom_int64_alloc(_term), do: err!()
   def codec_resource(_term), do: err!()
   def codec_struct(_term), do: err!()
   def codec_struct_exception(_term), do: err!()
