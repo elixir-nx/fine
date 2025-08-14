@@ -147,7 +147,7 @@ template <typename... Args> class Ok {
 public:
   using Items = std::tuple<Args...>;
 
-  Ok(Args... items) : m_items{std::move(items)...} {}
+  explicit Ok(Args... items) : m_items{std::move(items)...} {}
 
   template <typename... UArgs>
   Ok(const Ok<UArgs...> &other) : m_items(other.items()) {}
@@ -170,7 +170,7 @@ template <typename... Args> class Error {
 public:
   using Items = std::tuple<Args...>;
 
-  Error(Args... items) : m_items{std::move(items)...} {}
+  explicit Error(Args... items) : m_items{std::move(items)...} {}
 
   template <typename... UArgs>
   Error(const Error<UArgs...> &other) : m_items(other.items()) {}
