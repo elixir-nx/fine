@@ -147,10 +147,7 @@ template <typename... Args> class Ok {
 public:
   using Items = std::tuple<Args...>;
 
-  template <typename = std::enable_if_t<std::is_default_constructible_v<Items>>>
-  Ok() : m_items() {}
-
-  explicit Ok(Args... items) : m_items{std::move(items)...} {}
+  Ok(Args... items) : m_items{std::move(items)...} {}
 
   template <typename... UArgs>
   Ok(const Ok<UArgs...> &other) : m_items(other.items()) {}
@@ -165,7 +162,7 @@ public:
   Items &&items() && noexcept { return std::move(m_items); }
 
 private:
-  std::tuple<Args...> m_items;
+  Items m_items;
 };
 
 // Represents a `:error` tagged tuple, useful as a NIF result.
@@ -173,10 +170,7 @@ template <typename... Args> class Error {
 public:
   using Items = std::tuple<Args...>;
 
-  template <typename = std::enable_if_t<std::is_default_constructible_v<Items>>>
-  Error() : m_items() {}
-
-  explicit Error(Args... items) : m_items{std::move(items)...} {}
+  Error(Args... items) : m_items{std::move(items)...} {}
 
   template <typename... UArgs>
   Error(const Error<UArgs...> &other) : m_items(other.items()) {}
@@ -191,7 +185,7 @@ public:
   Items &&items() && noexcept { return std::move(m_items); }
 
 private:
-  std::tuple<Args...> m_items;
+  Items m_items;
 };
 
 namespace __private__ {
