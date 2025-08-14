@@ -356,15 +356,15 @@ bool compare_ge(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
 }
 FINE_NIF(compare_ge, 0);
 
-std::uint64_t term_hash_test(ErlNifEnv *, fine::Term term) noexcept {
+std::uint64_t hash_term(ErlNifEnv *, fine::Term term) noexcept {
   return std::invoke(std::hash<fine::Term>{}, term);
 }
-FINE_NIF(term_hash_test, 0);
+FINE_NIF(hash_term, 0);
 
-std::uint64_t atom_hash_test(ErlNifEnv *, fine::Atom atom) noexcept {
+std::uint64_t hash_atom(ErlNifEnv *, fine::Atom atom) noexcept {
   return std::invoke(std::hash<fine::Atom>{}, atom);
 }
-FINE_NIF(atom_hash_test, 0);
+FINE_NIF(hash_atom, 0);
 
 } // namespace finest
 

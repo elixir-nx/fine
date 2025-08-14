@@ -355,13 +355,13 @@ defmodule FinestTest do
   describe "hash" do
     test "term" do
       for value <- [42, "fine", ["it", %{"should" => {"just", "work"}}], :atom] do
-        assert NIF.term_hash_test(value) == NIF.term_hash_test(value)
+        assert NIF.hash_term(value) == NIF.hash_term(value)
       end
     end
 
     test "atom" do
       for value <- [:ok, :error, :"with spaces", Enum, nil, true, false] do
-        assert NIF.atom_hash_test(value) == NIF.atom_hash_test(value)
+        assert NIF.hash_atom(value) == NIF.hash_atom(value)
       end
     end
   end
