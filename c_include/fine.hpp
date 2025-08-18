@@ -762,14 +762,6 @@ struct Decoder<std::unordered_multimap<K, V, Hash, Pred, Alloc>> {
 
     return map;
   }
-
-private:
-  struct IterCleanup {
-    ErlNifEnv *env;
-    ErlNifMapIterator iter;
-
-    ~IterCleanup() { enif_map_iterator_destroy(env, &iter); }
-  };
 };
 
 template <typename T> struct Decoder<ResourcePtr<T>> {
