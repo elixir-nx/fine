@@ -233,6 +233,78 @@ defmodule FinestTest do
       end
     end
 
+    test "keyword" do
+      empty_keyword = []
+
+      small_keyword = [hello: 1, world: 2]
+
+      large_keyword =
+        0..64 |> Enum.map(fn x -> {:"a#{x}", x} end) |> Enum.to_list()
+
+      for keyword <- [empty_keyword, small_keyword, large_keyword] do
+        assert Enum.sort(NIF.codec_multimap_atom_int64(keyword)) == Enum.sort(keyword)
+        assert Enum.sort(NIF.codec_multimap_atom_int64_alloc(keyword)) == Enum.sort(keyword)
+        assert Enum.sort(NIF.codec_unordered_multimap_atom_int64(keyword)) == Enum.sort(keyword)
+
+        assert Enum.sort(NIF.codec_unordered_multimap_atom_int64_alloc(keyword)) ==
+                 Enum.sort(keyword)
+      end
+
+      invalid_keyword = 10
+
+      assert_raise ArgumentError, "decode failed, expected a list", fn ->
+        NIF.codec_multimap_atom_int64(invalid_keyword)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected a list", fn ->
+        NIF.codec_multimap_atom_int64_alloc(invalid_keyword)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected a list", fn ->
+        NIF.codec_unordered_multimap_atom_int64(invalid_keyword)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected a list", fn ->
+        NIF.codec_unordered_multimap_atom_int64_alloc(invalid_keyword)
+      end
+
+      keyword_with_invalid_key = [{"hello", 42}]
+
+      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+        NIF.codec_multimap_atom_int64(keyword_with_invalid_key)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+        NIF.codec_multimap_atom_int64_alloc(keyword_with_invalid_key)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+        NIF.codec_unordered_multimap_atom_int64(keyword_with_invalid_key)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an atom", fn ->
+        NIF.codec_unordered_multimap_atom_int64_alloc(keyword_with_invalid_key)
+      end
+
+      keyword_with_invalid_value = [hello: 1.0]
+
+      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+        NIF.codec_multimap_atom_int64(keyword_with_invalid_value)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+        NIF.codec_multimap_atom_int64_alloc(keyword_with_invalid_value)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+        NIF.codec_unordered_multimap_atom_int64(keyword_with_invalid_value)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected an integer", fn ->
+        NIF.codec_unordered_multimap_atom_int64_alloc(keyword_with_invalid_value)
+      end
+    end
+
     test "resource" do
       resource = NIF.resource_create(self())
       assert is_reference(resource)
