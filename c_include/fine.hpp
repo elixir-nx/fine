@@ -47,7 +47,8 @@ template <typename T, typename SFINAE = void> struct Encoder;
 
 namespace __private__ {
 std::vector<ErlNifFunc> &get_erl_nif_funcs();
-int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
+void init_atoms(ErlNifEnv *env);
+bool init_resources(ErlNifEnv *env);
 } // namespace __private__
 
 // Definitions
@@ -97,8 +98,7 @@ private:
   friend struct Decoder<Atom>;
   friend struct ::std::hash<Atom>;
 
-  friend int __private__::load(ErlNifEnv *env, void **priv_data,
-                               ERL_NIF_TERM load_info);
+  friend void __private__::init_atoms(ErlNifEnv *env);
 
   // We accumulate all globally defined atom objects and create the
   // terms upfront as part of init (called from the NIF load callback).
@@ -1221,8 +1221,7 @@ private:
 
   friend std::vector<ErlNifFunc> &__private__::get_erl_nif_funcs();
 
-  friend int __private__::load(ErlNifEnv *env, void **priv_data,
-                               ERL_NIF_TERM load_info);
+  friend bool __private__::init_resources(ErlNifEnv *env);
 
   inline static std::vector<std::tuple<ErlNifResourceType **, const char *,
                                        void (*)(ErlNifEnv *, void *)>>
@@ -1295,20 +1294,38 @@ constexpr unsigned int nif_arity(Ret (*)(Args...)) {
 }
 
 namespace __private__ {
+void init_atoms(ErlNifEnv *env) { fine::Atom::init_atoms(env); }
+
+bool init_resources(ErlNifEnv *env) {
+  return fine::Registration::init_resources(env);
+}
+
 inline std::vector<ErlNifFunc> &get_erl_nif_funcs() {
   return Registration::erl_nif_funcs;
 }
 
-inline int load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
-  Atom::init_atoms(env);
+enum class CallbackStatus {
+  UNIMPLEMENTED,
+  IMPLEMENTED,
+};
 
-  if (!Registration::init_resources(env)) {
-    return -1;
-  }
-
-  return 0;
-}
+template <CallbackStatus> struct OnLoad {
+  static void on_load(ErlNifEnv *) {}
+};
 } // namespace __private__
+
+// Macros
+
+#define FINE_LOAD(env)                                                         \
+  template <>                                                                  \
+  struct fine::__private__::OnLoad<                                            \
+      fine::__private__::CallbackStatus::IMPLEMENTED> {                        \
+    static void on_load(ErlNifEnv *);                                          \
+  };                                                                           \
+                                                                               \
+  void fine::__private__::                                                     \
+      OnLoad<fine::__private__::CallbackStatus::IMPLEMENTED>::on_load(         \
+          [[maybe_unused]] ErlNifEnv *env)
 
 // Macros
 
@@ -1345,7 +1362,28 @@ inline int load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
     auto &nif_funcs = fine::__private__::get_erl_nif_funcs();                  \
     auto num_funcs = static_cast<int>(nif_funcs.size());                       \
     auto funcs = nif_funcs.data();                                             \
-    auto load = fine::__private__::load;                                       \
+                                                                               \
+    const auto load = [](ErlNifEnv *env, void **, ERL_NIF_TERM) {              \
+      fine::__private__::init_atoms(env);                                      \
+                                                                               \
+      if (!fine::__private__::init_resources(env)) {                           \
+        return -1;                                                             \
+      }                                                                        \
+                                                                               \
+      try {                                                                    \
+        fine::__private__::OnLoad<                                             \
+            fine::__private__::CallbackStatus::IMPLEMENTED>::on_load(env);     \
+      } catch (const std::exception &e) {                                      \
+        enif_fprintf(stderr, "unhandled exception: %s\n", e.what());           \
+        return -1;                                                             \
+      } catch (...) {                                                          \
+        enif_fprintf(stderr, "unhandled throw\n");                             \
+        return -1;                                                             \
+      }                                                                        \
+                                                                               \
+      return 0;                                                                \
+    };                                                                         \
+                                                                               \
     static ErlNifEntry entry = {ERL_NIF_MAJOR_VERSION,                         \
                                 ERL_NIF_MINOR_VERSION,                         \
                                 name,                                          \

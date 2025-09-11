@@ -502,4 +502,10 @@ defmodule FinestTest do
       end
     end
   end
+
+  describe "callbacks" do
+    test "load" do
+      assert NIF.is_loaded()
+    end
+  end
 end

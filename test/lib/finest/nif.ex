@@ -80,5 +80,7 @@ defmodule Finest.NIF do
   def hash_term(_term), do: err!()
   def hash_atom(_term), do: err!()
 
+  def is_loaded(), do: err!()
+
   defp err!(), do: :erlang.nif_error(:not_loaded)
 end

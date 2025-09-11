@@ -604,6 +604,36 @@ Attempting to decode STL containers making use of `std::pmr::polymorphic_allocat
 will result in the `std::pmr::get_default_resource()` memory resource being
 used.
 
+## Global Callbacks
+
+The Erlang NIF API allows the creation of global callbacks. This section
+describes how to leverage these callbacks while using Fine.
+
+Callbacks MUST be used before `FINE_NIF`, since the formers use template
+specializations that are instantiated by the latter.  If the order is reverse,
+there is no guarantee that `FINE_NIF` will actually invoke the callbacks.
+
+### Load
+
+The NIF load callback is called by the ERTS when the NIFs are being loaded by
+`:erlang.load_nif/2`.  Fine allows customizing the behavior of the load callback
+using the `FINE_LOAD` macro:
+
+```c++
+static ThreadPool s_pool;
+
+FINE_LOAD(env) {
+  s_pool = ThreadPool(std::thread::hardware_concurrency());
+}
+
+FINE_INIT("Elixir.MyLib.NIF");
+```
+
+`FINE_LOAD` takes an identifier that will become the name of the variable
+storing the `ErlNifEnv *`. While the NIF load callback returns an `int` to
+designate success or failure, `FINE_LOAD` will instead check for a thrown
+exception to determine success or failure.
+
 <!-- Docs -->
 
 ## Prior work
