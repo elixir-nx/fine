@@ -609,30 +609,28 @@ used.
 The Erlang NIF API allows the creation of global callbacks. This section
 describes how to leverage these callbacks while using Fine.
 
-Callbacks MUST be used before `FINE_NIF`, since the formers use template
+Callbacks MUST be used before `FINE_INIT`, since the formers use template
 specializations that are instantiated by the latter.  If the order is reverse,
-there is no guarantee that `FINE_NIF` will actually invoke the callbacks.
+there is no guarantee that `FINE_INIT` will actually invoke the callbacks.
 
 ### Load
 
 The NIF load callback is called by the ERTS when the NIFs are being loaded by
 `:erlang.load_nif/2`.  Fine allows customizing the behavior of the load callback
-using the `FINE_LOAD` macro:
+using the `FINE_LOAD` macro before the `FINE_INIT` macro:
 
 ```c++
-static ThreadPool s_pool;
+static std::unique_ptr<ThreadPool> s_pool;
 
-FINE_LOAD(env) {
-  s_pool = ThreadPool(std::thread::hardware_concurrency());
+static void load(ErlNifEnv* caller_env, void** priv_data, fine::Term load_info)
+{
+  const auto thread_count = fine::decode<std::uint64_t>(caller_env, load_info);
+  s_pool = std::make_unique<FixedThreadPool>(thread_count);
 }
 
+FINE_LOAD(load);
 FINE_INIT("Elixir.MyLib.NIF");
 ```
-
-`FINE_LOAD` takes an identifier that will become the name of the variable
-storing the `ErlNifEnv *`. While the NIF load callback returns an `int` to
-designate success or failure, `FINE_LOAD` will instead check for a thrown
-exception to determine success or failure.
 
 <!-- Docs -->
 
