@@ -1316,18 +1316,20 @@ template <CallbackStatus> struct OnLoad {
 
 // Macros
 
-#define FINE_LOAD(env)                                                         \
+#define FINE_LOAD(function)                                                    \
+  static_assert(std::is_invocable_v<decltype((function)), ErlNifEnv *,         \
+                                    void **, ERL_NIF_TERM>,                    \
+                "function must have the signature: void(*)(ErlNifEnv* "        \
+                "caller_env, void** priv_data, fine::Term load_info)");        \
   template <>                                                                  \
   struct fine::__private__::OnLoad<                                            \
       fine::__private__::CallbackStatus::IMPLEMENTED> {                        \
-    static void on_load(ErlNifEnv *);                                          \
+    static void on_load(ErlNifEnv *caller_env, void **priv_data,               \
+                        ERL_NIF_TERM load_info) {                              \
+      (function)(caller_env, priv_data, load_info);                            \
+    }                                                                          \
   };                                                                           \
-                                                                               \
-  void fine::__private__::                                                     \
-      OnLoad<fine::__private__::CallbackStatus::IMPLEMENTED>::on_load(         \
-          [[maybe_unused]] ErlNifEnv *env)
-
-// Macros
+  static_assert(true, "require a semicolon after the macro")
 
 #define FINE_NIF(name, flags)                                                  \
   static ERL_NIF_TERM name##_nif(ErlNifEnv *env, int argc,                     \
@@ -1363,16 +1365,18 @@ template <CallbackStatus> struct OnLoad {
     auto num_funcs = static_cast<int>(nif_funcs.size());                       \
     auto funcs = nif_funcs.data();                                             \
                                                                                \
-    const auto load = [](ErlNifEnv *env, void **, ERL_NIF_TERM) {              \
-      fine::__private__::init_atoms(env);                                      \
+    const auto load = [](ErlNifEnv *caller_env, void **priv_data,              \
+                         ERL_NIF_TERM load_info) {                             \
+      fine::__private__::init_atoms(caller_env);                               \
                                                                                \
-      if (!fine::__private__::init_resources(env)) {                           \
+      if (!fine::__private__::init_resources(caller_env)) {                    \
         return -1;                                                             \
       }                                                                        \
                                                                                \
       try {                                                                    \
-        fine::__private__::OnLoad<                                             \
-            fine::__private__::CallbackStatus::IMPLEMENTED>::on_load(env);     \
+        fine::__private__::                                                    \
+            OnLoad<fine::__private__::CallbackStatus::IMPLEMENTED>::on_load(   \
+                caller_env, priv_data, load_info);                             \
       } catch (const std::exception &e) {                                      \
         enif_fprintf(stderr, "unhandled exception: %s\n", e.what());           \
         return -1;                                                             \
