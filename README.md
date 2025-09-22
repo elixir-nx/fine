@@ -632,6 +632,24 @@ FINE_LOAD(load);
 FINE_INIT("Elixir.MyLib.NIF");
 ```
 
+### Unload
+
+The NIF unload callback is called by the ERTS when the NIFs are being unloaded
+from the runtime.  Fine allows customizing the behavior of the unload callback
+using the `FINE_UNLOAD` macro before the `FINE_INIT` macro:
+
+```c++
+static std::unique_ptr<ThreadPool> s_pool;
+
+static void unload(ErlNifEnv* caller_env, void** priv_data)
+{
+  s_pool.stop();
+}
+
+FINE_UNLOAD(unload);
+FINE_INIT("Elixir.MyLib.NIF);
+```
+
 <!-- Docs -->
 
 ## Prior work

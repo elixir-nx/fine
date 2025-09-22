@@ -1310,7 +1310,11 @@ enum class CallbackStatus {
 };
 
 template <CallbackStatus> struct OnLoad {
-  static void on_load(ErlNifEnv *) {}
+  static void on_load(ErlNifEnv *, void **, ERL_NIF_TERM) {}
+};
+
+template <CallbackStatus> struct OnUnload {
+  static void on_unload(ErlNifEnv *, void *) {}
 };
 } // namespace __private__
 
@@ -1327,6 +1331,20 @@ template <CallbackStatus> struct OnLoad {
     static void on_load(ErlNifEnv *caller_env, void **priv_data,               \
                         ERL_NIF_TERM load_info) {                              \
       (function)(caller_env, priv_data, load_info);                            \
+    }                                                                          \
+  };                                                                           \
+  static_assert(true, "require a semicolon after the macro")
+
+#define FINE_UNLOAD(function)                                                  \
+  static_assert(                                                               \
+      std::is_invocable_v<decltype((function)), ErlNifEnv *, void *>,          \
+      "function must have the signature: void(*)(ErlNifEnv* "                  \
+      "caller_env, void* priv_data)");                                         \
+  template <>                                                                  \
+  struct fine::__private__::OnUnload<                                          \
+      fine::__private__::CallbackStatus::IMPLEMENTED> {                        \
+    static void on_unload(ErlNifEnv *caller_env, void *priv_data) {            \
+      (function)(caller_env, priv_data);                                       \
     }                                                                          \
   };                                                                           \
   static_assert(true, "require a semicolon after the macro")
@@ -1366,7 +1384,7 @@ template <CallbackStatus> struct OnLoad {
     auto funcs = nif_funcs.data();                                             \
                                                                                \
     const auto load = [](ErlNifEnv *caller_env, void **priv_data,              \
-                         ERL_NIF_TERM load_info) {                             \
+                         ERL_NIF_TERM load_info) noexcept {                    \
       fine::__private__::init_atoms(caller_env);                               \
                                                                                \
       if (!fine::__private__::init_resources(caller_env)) {                    \
@@ -1388,6 +1406,12 @@ template <CallbackStatus> struct OnLoad {
       return 0;                                                                \
     };                                                                         \
                                                                                \
+    const auto unload = [](ErlNifEnv *caller_env, void *priv_data) noexcept {  \
+      fine::__private__::                                                      \
+          OnUnload<fine::__private__::CallbackStatus::IMPLEMENTED>::on_unload( \
+              caller_env, priv_data);                                          \
+    };                                                                         \
+                                                                               \
     static ErlNifEntry entry = {ERL_NIF_MAJOR_VERSION,                         \
                                 ERL_NIF_MINOR_VERSION,                         \
                                 name,                                          \
@@ -1396,7 +1420,7 @@ template <CallbackStatus> struct OnLoad {
                                 load,                                          \
                                 NULL,                                          \
                                 NULL,                                          \
-                                NULL,                                          \
+                                unload,                                        \
                                 ERL_NIF_VM_VARIANT,                            \
                                 1,                                             \
                                 sizeof(ErlNifResourceTypeInit),                \
