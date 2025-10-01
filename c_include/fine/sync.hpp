@@ -194,6 +194,112 @@ private:
   };
   std::unique_ptr<ErlNifRWLock, Deleter> m_handle;
 };
+
+// Condition variable. Used when threads must wait for a specific
+// condition to appear before continuing execution. Condition
+// variables must be used with associated mutexes.
+class ConditionVariable final {
+public:
+  // Creates a condition variable.
+  ConditionVariable() : m_handle{enif_cond_create(nullptr)} {
+    if (!m_handle) {
+      throw std::runtime_error("failed to create cond");
+    }
+  }
+
+  // Creates a ConditionVariable from an ErlNifCond handle.
+  explicit ConditionVariable(ErlNifCond *handle) : m_handle{handle} {}
+
+  // Creates a condition variable.
+  //
+  // `name` is a string identifying the created condition variable. It is used
+  // to identify the condition variable in planned future debug functionality.
+  explicit ConditionVariable(const char *name)
+      : m_handle{enif_cond_create(const_cast<char *>(name))} {
+    if (!m_handle) {
+      throw std::runtime_error("failed to create cond");
+    }
+  }
+
+  // Creates a condition variable.
+  //
+  // `name` is a string identifying the created condition variable. It is used
+  // to identify the condition variable in planned future debug functionality.
+  explicit ConditionVariable(const std::string &name)
+      : m_handle{enif_cond_create(const_cast<char *>(name.c_str()))} {
+    if (!m_handle) {
+      throw std::runtime_error("failed to create cond");
+    }
+  }
+
+  // Converts this ConditionVariable to a ErlNifConditionVariable handle.
+  //
+  // Ownership still belongs to this instance.
+  operator ErlNifCond *() const & noexcept { return m_handle.get(); }
+
+  // Releases ownership of the ErlNifCond handle to the caller.
+  //
+  // This operation is only possible by:
+  // ```
+  // static_cast<ErlNifCond*>(std::move(rwlock))
+  // ```
+  explicit operator ErlNifCond *() && noexcept { return m_handle.release(); }
+
+  // Broadcasts on this condition variable. That is, if other threads are
+  // waiting on the condition variable being broadcast on, all of them are
+  // woken.
+  //
+  // This function is thread-safe.
+  void notify_all() noexcept { enif_cond_broadcast(m_handle.get()); }
+
+  // Signals on a condition variable. That is, if other threads are waiting on
+  // the condition variable being signaled, one of them is woken.
+  //
+  // This function is thread-safe.
+  void notify_one() noexcept { enif_cond_signal(m_handle.get()); }
+
+  // Waits on a condition variable. The calling thread is blocked until another
+  // thread wakes it by signaling or broadcasting on the condition variable.
+  // Before the calling thread is blocked, it unlocks the mutex passed as
+  // argument. When the calling thread is woken, it locks the same mutex before
+  // returning. That is, the mutex currently must be locked by the calling
+  // thread when calling this function.
+  //
+  // `wait` can return even if no one has signaled or broadcast on the condition
+  // variable. Code calling `wait` is always to be prepared for `wait` returning
+  // even if the condition that the thread was waiting for has not occurred.
+  // That is, when returning from `wait`, always check if the condition has
+  // occurred, and if not call `wait` again.
+  //
+  // This function is thread-safe.
+  [[deprecated(
+      "usage of `void fine::ConditionVariable::wait(std::unique_lock<Mutex> "
+      "&, Predicate)` is preferred")]]
+  void wait(std::unique_lock<Mutex> &lock) noexcept {
+    enif_cond_wait(m_handle.get(), *lock.mutex());
+  }
+
+  // Waits on a condition variable. The calling thread is blocked until another
+  // thread wakes it by signaling or broadcasting on the condition variable.
+  // Before the calling thread is blocked, it unlocks the mutex passed as
+  // argument. When the calling thread is woken, it locks the same mutex before
+  // returning. That is, the mutex currently must be locked by the calling
+  // thread when calling this function.
+  //
+  // This function is thread-safe.
+  template <typename Predicate>
+  void wait(std::unique_lock<Mutex> &lock, Predicate pred) {
+    while (!pred()) {
+      enif_cond_wait(m_handle.get(), *lock.mutex());
+    }
+  }
+
+private:
+  struct Deleter {
+    void operator()(ErlNifCond *handle) noexcept { enif_cond_destroy(handle); }
+  };
+  std::unique_ptr<ErlNifCond, Deleter> m_handle;
+};
 } // namespace fine
 
 #endif

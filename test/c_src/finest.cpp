@@ -422,6 +422,52 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
 }
 FINE_NIF(shared_mutex_shared_lock_test, 0);
 
+std::nullopt_t condition_variable_test(ErlNifEnv *) {
+  bool notified = false;
+  fine::Mutex mutex("finest", "condition_variable_test_mutex");
+  fine::ConditionVariable cond("condition_variable_test");
+
+  std::thread thread1([&] {
+    {
+      auto lock = std::unique_lock{mutex};
+      cond.wait(lock, [&]() -> bool { return notified; });
+    }
+
+    cond.notify_all();
+  });
+
+  std::thread thread2([&] {
+    {
+      auto lock = std::unique_lock{mutex};
+      cond.wait(lock, [&]() -> bool { return notified; });
+    }
+
+    cond.notify_all();
+  });
+
+  std::thread thread3([&] {
+    {
+      auto lock = std::unique_lock{mutex};
+      cond.wait(lock, [&]() { return notified; });
+    }
+
+    cond.notify_all();
+  });
+
+  std::thread thread4([&] {
+    notified = true;
+    cond.notify_one();
+  });
+
+  thread1.join();
+  thread2.join();
+  thread3.join();
+  thread4.join();
+
+  return std::nullopt;
+}
+FINE_NIF(condition_variable_test, 0);
+
 bool compare_eq(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs == rhs;
 }

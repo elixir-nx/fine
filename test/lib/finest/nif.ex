@@ -70,6 +70,8 @@ defmodule Finest.NIF do
   def shared_mutex_unique_lock_test(), do: err!()
   def shared_mutex_shared_lock_test(), do: err!()
 
+  def condition_variable_test(), do: err!()
+
   def compare_eq(_lhs, _rhs), do: err!()
   def compare_ne(_lhs, _rhs), do: err!()
   def compare_lt(_lhs, _rhs), do: err!()

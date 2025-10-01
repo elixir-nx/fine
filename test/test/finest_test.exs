@@ -451,6 +451,12 @@ defmodule FinestTest do
     end
   end
 
+  describe "condition_variable" do
+    test "condition_variable" do
+      NIF.condition_variable_test()
+    end
+  end
+
   describe "comparison" do
     test "equal" do
       refute NIF.compare_eq(64, 42)
