@@ -609,45 +609,33 @@ used.
 The Erlang NIF API allows the creation of global callbacks. This section
 describes how to leverage these callbacks while using Fine.
 
-Callbacks MUST be used before `FINE_INIT`, since the formers use template
-specializations that are instantiated by the latter.  If the order is reverse,
-there is no guarantee that `FINE_INIT` will actually invoke the callbacks.
-
 ### Load
 
 The NIF load callback is called by the ERTS when the NIFs are being loaded by
 `:erlang.load_nif/2`.  Fine allows customizing the behavior of the load callback
-using the `FINE_LOAD` macro before the `FINE_INIT` macro:
+using the `fine::Registration::register_load` function:
 
 ```c++
 static std::unique_ptr<ThreadPool> s_pool;
 
-static void load(ErlNifEnv* caller_env, void** priv_data, fine::Term load_info)
-{
+static auto load = fine::Registration::register_load([](ErlNifEnv *env, void **priv_data, fine::Term load_info) {
   const auto thread_count = fine::decode<std::uint64_t>(caller_env, load_info);
   s_pool = std::make_unique<FixedThreadPool>(thread_count);
-}
-
-FINE_LOAD(load);
-FINE_INIT("Elixir.MyLib.NIF");
+});
 ```
 
 ### Unload
 
 The NIF unload callback is called by the ERTS when the NIFs are being unloaded
 from the runtime.  Fine allows customizing the behavior of the unload callback
-using the `FINE_UNLOAD` macro before the `FINE_INIT` macro:
+using the `fine::Registration::register_unload` function:
 
 ```c++
 static std::unique_ptr<ThreadPool> s_pool;
 
-static void unload(ErlNifEnv* caller_env, void** priv_data)
-{
+static auto unload = fine::Registration::register_unload([](ErlNifEnv *env, void *priv_data) noexcept {
   s_pool.stop();
-}
-
-FINE_UNLOAD(unload);
-FINE_INIT("Elixir.MyLib.NIF);
+});
 ```
 
 <!-- Docs -->

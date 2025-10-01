@@ -463,14 +463,15 @@ std::uint64_t hash_atom(ErlNifEnv *, fine::Atom atom) noexcept {
 FINE_NIF(hash_atom, 0);
 
 static bool s_loaded = false;
-static void load(ErlNifEnv *, void **, fine::Term) { s_loaded = true; }
+
+static auto load = fine::Registration::register_load(
+    [](ErlNifEnv *, void **, ERL_NIF_TERM) { s_loaded = true; });
+
+static auto unload = fine::Registration::register_unload(
+    [](ErlNifEnv *, void *) noexcept { s_loaded = false; });
 
 bool is_loaded(ErlNifEnv *) { return s_loaded; }
 FINE_NIF(is_loaded, 0);
-
-static void unload(ErlNifEnv *, void *) {}
 } // namespace finest
 
-FINE_LOAD(finest::load);
-FINE_UNLOAD(finest::unload);
 FINE_INIT("Elixir.Finest.NIF");

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -47,6 +48,8 @@ template <typename T, typename SFINAE = void> struct Encoder;
 
 namespace __private__ {
 std::vector<ErlNifFunc> &get_erl_nif_funcs();
+decltype(auto) get_erl_nif_load_callback();
+decltype(auto) get_erl_nif_unload_callback();
 void init_atoms(ErlNifEnv *env);
 bool init_resources(ErlNifEnv *env);
 } // namespace __private__
@@ -1187,6 +1190,12 @@ template <typename T> void raise(ErlNifEnv *env, const T &value) {
 // Mechanism for accumulating information via static object definitions.
 class Registration {
 public:
+  // A function compatible with the load callback of Erlang's NIFs.
+  using LoadCallback = std::function<void(ErlNifEnv *, void **, fine::Term)>;
+
+  // A function compatible with the unload callback of Erlang's NIFs.
+  using UnloadCallback = std::function<void(ErlNifEnv *, void *)>;
+
   template <typename T>
   static Registration register_resource(const char *name) {
     Registration::resources.push_back({&fine::ResourcePtr<T>::resource_type,
@@ -1198,6 +1207,26 @@ public:
   static Registration register_nif(ErlNifFunc erl_nif_func) {
     Registration::erl_nif_funcs.push_back(erl_nif_func);
     return {};
+  }
+
+  // Registers a load callback.
+  static LoadCallback register_load(LoadCallback callback) {
+    if (erl_nif_load_callback) {
+      throw std::logic_error("load callback already registered");
+    }
+
+    return Registration::erl_nif_load_callback = callback;
+    return callback;
+  }
+
+  // Registers an unload callback.
+  static UnloadCallback register_unload(UnloadCallback callback) {
+    if (erl_nif_unload_callback) {
+      throw std::logic_error("unload callback already registered");
+    }
+
+    Registration::erl_nif_unload_callback = callback;
+    return callback;
   }
 
 private:
@@ -1220,6 +1249,8 @@ private:
   }
 
   friend std::vector<ErlNifFunc> &__private__::get_erl_nif_funcs();
+  friend decltype(auto) __private__::get_erl_nif_load_callback();
+  friend decltype(auto) __private__::get_erl_nif_unload_callback();
 
   friend bool __private__::init_resources(ErlNifEnv *env);
 
@@ -1228,6 +1259,8 @@ private:
       resources = {};
 
   inline static std::vector<ErlNifFunc> erl_nif_funcs = {};
+  inline static LoadCallback erl_nif_load_callback = {};
+  inline static UnloadCallback erl_nif_unload_callback = {};
 };
 
 // NIF definitions
@@ -1304,51 +1337,47 @@ inline std::vector<ErlNifFunc> &get_erl_nif_funcs() {
   return Registration::erl_nif_funcs;
 }
 
-enum class CallbackStatus {
-  UNIMPLEMENTED,
-  IMPLEMENTED,
-};
+inline decltype(auto) get_erl_nif_load_callback() {
+  return Registration::erl_nif_load_callback;
+}
 
-template <CallbackStatus> struct OnLoad {
-  static void on_load(ErlNifEnv *, void **, ERL_NIF_TERM) {}
-};
+inline decltype(auto) get_erl_nif_unload_callback() {
+  return Registration::erl_nif_unload_callback;
+}
 
-template <CallbackStatus> struct OnUnload {
-  static void on_unload(ErlNifEnv *, void *) {}
-};
+inline int load(ErlNifEnv *caller_env, void **priv_data,
+                ERL_NIF_TERM load_info) noexcept {
+  init_atoms(caller_env);
+
+  if (!init_resources(caller_env)) {
+    return -1;
+  }
+
+  try {
+    if (fine::__private__::get_erl_nif_load_callback()) {
+      std::invoke(fine::__private__::get_erl_nif_load_callback(), caller_env,
+                  priv_data, load_info);
+    }
+  } catch (const std::exception &e) {
+    enif_fprintf(stderr, "unhandled exception: %s\n", e.what());
+    return -1;
+  } catch (...) {
+    enif_fprintf(stderr, "unhandled throw\n");
+    return -1;
+  }
+
+  return 0;
+}
+
+inline void unload(ErlNifEnv *caller_env, void *priv_data) noexcept {
+  if (fine::__private__::get_erl_nif_unload_callback()) {
+    std::invoke(fine::__private__::get_erl_nif_unload_callback(), caller_env,
+                priv_data);
+  }
+}
 } // namespace __private__
 
 // Macros
-
-#define FINE_LOAD(function)                                                    \
-  static_assert(std::is_invocable_v<decltype((function)), ErlNifEnv *,         \
-                                    void **, ERL_NIF_TERM>,                    \
-                "function must have the signature: void(*)(ErlNifEnv* "        \
-                "caller_env, void** priv_data, fine::Term load_info)");        \
-  template <>                                                                  \
-  struct fine::__private__::OnLoad<                                            \
-      fine::__private__::CallbackStatus::IMPLEMENTED> {                        \
-    static void on_load(ErlNifEnv *caller_env, void **priv_data,               \
-                        ERL_NIF_TERM load_info) {                              \
-      (function)(caller_env, priv_data, load_info);                            \
-    }                                                                          \
-  };                                                                           \
-  static_assert(true, "require a semicolon after the macro")
-
-#define FINE_UNLOAD(function)                                                  \
-  static_assert(                                                               \
-      std::is_invocable_v<decltype((function)), ErlNifEnv *, void *>,          \
-      "function must have the signature: void(*)(ErlNifEnv* "                  \
-      "caller_env, void* priv_data)");                                         \
-  template <>                                                                  \
-  struct fine::__private__::OnUnload<                                          \
-      fine::__private__::CallbackStatus::IMPLEMENTED> {                        \
-    static void on_unload(ErlNifEnv *caller_env, void *priv_data) {            \
-      (function)(caller_env, priv_data);                                       \
-    }                                                                          \
-  };                                                                           \
-  static_assert(true, "require a semicolon after the macro")
-
 #define FINE_NIF(name, flags)                                                  \
   static ERL_NIF_TERM name##_nif(ErlNifEnv *env, int argc,                     \
                                  const ERL_NIF_TERM argv[]) {                  \
@@ -1383,44 +1412,15 @@ template <CallbackStatus> struct OnUnload {
     auto num_funcs = static_cast<int>(nif_funcs.size());                       \
     auto funcs = nif_funcs.data();                                             \
                                                                                \
-    const auto load = [](ErlNifEnv *caller_env, void **priv_data,              \
-                         ERL_NIF_TERM load_info) noexcept {                    \
-      fine::__private__::init_atoms(caller_env);                               \
-                                                                               \
-      if (!fine::__private__::init_resources(caller_env)) {                    \
-        return -1;                                                             \
-      }                                                                        \
-                                                                               \
-      try {                                                                    \
-        fine::__private__::                                                    \
-            OnLoad<fine::__private__::CallbackStatus::IMPLEMENTED>::on_load(   \
-                caller_env, priv_data, load_info);                             \
-      } catch (const std::exception &e) {                                      \
-        enif_fprintf(stderr, "unhandled exception: %s\n", e.what());           \
-        return -1;                                                             \
-      } catch (...) {                                                          \
-        enif_fprintf(stderr, "unhandled throw\n");                             \
-        return -1;                                                             \
-      }                                                                        \
-                                                                               \
-      return 0;                                                                \
-    };                                                                         \
-                                                                               \
-    const auto unload = [](ErlNifEnv *caller_env, void *priv_data) noexcept {  \
-      fine::__private__::                                                      \
-          OnUnload<fine::__private__::CallbackStatus::IMPLEMENTED>::on_unload( \
-              caller_env, priv_data);                                          \
-    };                                                                         \
-                                                                               \
     static ErlNifEntry entry = {ERL_NIF_MAJOR_VERSION,                         \
                                 ERL_NIF_MINOR_VERSION,                         \
                                 name,                                          \
                                 num_funcs,                                     \
                                 funcs,                                         \
-                                load,                                          \
+                                fine::__private__::load,                       \
                                 NULL,                                          \
                                 NULL,                                          \
-                                unload,                                        \
+                                fine::__private__::unload,                     \
                                 ERL_NIF_VM_VARIANT,                            \
                                 1,                                             \
                                 sizeof(ErlNifResourceTypeInit),                \
