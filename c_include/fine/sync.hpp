@@ -258,6 +258,9 @@ public:
   // This function is thread-safe.
   void notify_one() noexcept { enif_cond_signal(m_handle.get()); }
 
+  // Prefer the use of `wait(std::unique_lock<Mutex>&, Predicate)` over this
+  // function.
+  //
   // Waits on a condition variable. The calling thread is blocked until another
   // thread wakes it by signaling or broadcasting on the condition variable.
   // Before the calling thread is blocked, it unlocks the mutex passed as
@@ -272,9 +275,6 @@ public:
   // occurred, and if not call `wait` again.
   //
   // This function is thread-safe.
-  [[deprecated(
-      "usage of `void fine::ConditionVariable::wait(std::unique_lock<Mutex> "
-      "&, Predicate)` is preferred")]]
   void wait(std::unique_lock<Mutex> &lock) noexcept {
     enif_cond_wait(m_handle.get(), *lock.mutex());
   }
