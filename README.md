@@ -524,10 +524,14 @@ can be called from multiple Erlang processes simultaneously, leading to race
 conditions. While C++ provides synchronization mechanisms, these are unknown to
 Erlang and cannot take advantage of tools like *lock checker* or *lcnt*.
 
-Fine provides analogues to `std::mutex` and `std::shared_mutex`, respectively
-called `fine::Mutex` and `fine::SharedMutex`. Those are compatible with the
-standard mutex wrappers, such as `std::unique_lock` and `std::shared_lock`.
-For example:
+Fine provides analogues to `std::mutex`, `std::shared_mutex`, and
+`std::condition_variable`, respectively called `fine::Mutex`,
+`fine::SharedMutex`, and `fine::ConditionVariable`. All of their implementations 
+are provided in the `<fine/sync.h>` header.
+
+
+`fine::Mutex` and `fine::SharedMutex` are compatible with `std::unique_lock`
+and `std::shared_lock`. For example:
 
 ```c++
 #include <fine/sync.hpp>
@@ -571,6 +575,33 @@ const char* my_object__name(struct my_object*);
 
 fine::SharedMutex my_object_rwlock("my_lib", "my_object", my_object__name(my_object));
 ```
+
+Fine also provides `fine::ConditionVariable` with an API similar to
+`std::condition_variable`:
+
+```c++
+bool notified = false;
+fine::Mutex mutex;
+fine::ConditionVariable cond;
+
+std::thread t1([&]() {
+  auto lock = std::unique_lock{mutex};
+  cond.wait(lock, []() { return notified; });
+});
+
+std::thread t2([&]() {
+  {
+    auto lock = std::unique_lock{mutex};
+    notified = true;
+  }
+  
+  cond.notify_all();
+});
+
+t2.join();
+t1.join();
+```
+
 ## Allocators
 
 For compatibility with the STL, fine supports stateless allocators when

@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cstring>
 #include <exception>
 #include <functional>
@@ -421,6 +422,64 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
   return std::nullopt;
 }
 FINE_NIF(shared_mutex_shared_lock_test, 0);
+
+class ResetEvent {
+public:
+  explicit ResetEvent(const bool signaled = false) noexcept
+      : m_signaled{signaled} {}
+
+  void set() {
+    {
+      auto lock = std::unique_lock{m_mutex};
+      m_signaled = true;
+    }
+
+    m_cond.notify_one();
+  }
+
+  void reset() {
+    auto lock = std::unique_lock{m_mutex};
+    m_signaled = false;
+  }
+
+  void wait() {
+    auto lock = std::unique_lock{m_mutex};
+    m_cond.wait(lock, [&] { return m_signaled; });
+    m_signaled = false;
+  }
+
+private:
+  bool m_signaled;
+  fine::Mutex m_mutex;
+  fine::ConditionVariable m_cond;
+};
+
+std::nullopt_t condition_variable_test(ErlNifEnv *) {
+  ResetEvent event{true};
+  event.reset();
+
+  std::thread wait_thread_1([&] {
+    event.wait();
+    event.set();
+  });
+  std::thread wait_thread_2([&] {
+    event.wait();
+    event.set();
+  });
+  std::thread wait_thread_3([&] {
+    event.wait();
+    event.set();
+  });
+
+  event.set();
+
+  wait_thread_1.join();
+  wait_thread_2.join();
+  wait_thread_3.join();
+
+  return std::nullopt;
+}
+FINE_NIF(condition_variable_test, 0);
 
 bool compare_eq(ErlNifEnv *, fine::Term lhs, fine::Term rhs) noexcept {
   return lhs == rhs;
