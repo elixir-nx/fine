@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cstring>
 #include <exception>
 #include <functional>
@@ -422,47 +423,60 @@ std::nullopt_t shared_mutex_shared_lock_test(ErlNifEnv *) {
 }
 FINE_NIF(shared_mutex_shared_lock_test, 0);
 
+class ResetEvent {
+public:
+public:
+  explicit ResetEvent(const bool signaled = false) noexcept
+      : m_signaled{signaled} {}
+
+  void set() {
+    {
+      auto lock = std::unique_lock{m_mutex};
+      m_signaled = true;
+    }
+
+    m_cond.notify_one();
+  }
+
+  void reset() {
+    auto lock = std::unique_lock{m_mutex};
+    m_signaled = false;
+  }
+
+  void wait() {
+    auto lock = std::unique_lock{m_mutex};
+    m_cond.wait(lock, [&] { return m_signaled; });
+    m_signaled = false;
+  }
+
+private:
+  bool m_signaled;
+  fine::Mutex m_mutex;
+  fine::ConditionVariable m_cond;
+};
+
 std::nullopt_t condition_variable_test(ErlNifEnv *) {
-  bool notified = false;
-  fine::Mutex mutex("finest", "condition_variable_test_mutex");
-  fine::ConditionVariable cond("condition_variable_test");
+  ResetEvent event{true};
+  event.reset();
 
-  std::thread thread1([&] {
-    {
-      auto lock = std::unique_lock{mutex};
-      cond.wait(lock, [&]() -> bool { return notified; });
-    }
-
-    cond.notify_all();
+  std::thread wait_thread_1([&] {
+    event.wait();
+    event.set();
+  });
+  std::thread wait_thread_2([&] {
+    event.wait();
+    event.set();
+  });
+  std::thread wait_thread_3([&] {
+    event.wait();
+    event.set();
   });
 
-  std::thread thread2([&] {
-    {
-      auto lock = std::unique_lock{mutex};
-      cond.wait(lock, [&]() -> bool { return notified; });
-    }
+  event.set();
 
-    cond.notify_all();
-  });
-
-  std::thread thread3([&] {
-    {
-      auto lock = std::unique_lock{mutex};
-      cond.wait(lock, [&]() { return notified; });
-    }
-
-    cond.notify_all();
-  });
-
-  std::thread thread4([&] {
-    notified = true;
-    cond.notify_one();
-  });
-
-  thread1.join();
-  thread2.join();
-  thread3.join();
-  thread4.join();
+  wait_thread_1.join();
+  wait_thread_2.join();
+  wait_thread_3.join();
 
   return std::nullopt;
 }
