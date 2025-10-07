@@ -618,7 +618,7 @@ using the `fine::Registration::register_load` function:
 ```c++
 static std::unique_ptr<ThreadPool> s_pool;
 
-static auto load = fine::Registration::register_load([](ErlNifEnv *env, void **priv_data, fine::Term load_info) {
+static auto load_registration = fine::Registration::register_load([](ErlNifEnv *env, void **priv_data, fine::Term load_info) {
   const auto thread_count = fine::decode<std::uint64_t>(caller_env, load_info);
   s_pool = std::make_unique<FixedThreadPool>(thread_count);
 });
@@ -633,7 +633,7 @@ using the `fine::Registration::register_unload` function:
 ```c++
 static std::unique_ptr<ThreadPool> s_pool;
 
-static auto unload = fine::Registration::register_unload([](ErlNifEnv *env, void *priv_data) noexcept {
+static auto unload_registration = fine::Registration::register_unload([](ErlNifEnv *env, void *priv_data) noexcept {
   s_pool.stop();
 });
 ```

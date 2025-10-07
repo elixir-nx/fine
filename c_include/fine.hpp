@@ -48,10 +48,10 @@ template <typename T, typename SFINAE = void> struct Encoder;
 
 namespace __private__ {
 std::vector<ErlNifFunc> &get_erl_nif_funcs();
-decltype(auto) get_erl_nif_load_callback();
-decltype(auto) get_erl_nif_unload_callback();
 void init_atoms(ErlNifEnv *env);
 bool init_resources(ErlNifEnv *env);
+int load(ErlNifEnv *, void **, ERL_NIF_TERM) noexcept;
+void unload(ErlNifEnv *, void *) noexcept;
 } // namespace __private__
 
 // Definitions
@@ -1249,8 +1249,8 @@ private:
   }
 
   friend std::vector<ErlNifFunc> &__private__::get_erl_nif_funcs();
-  friend decltype(auto) __private__::get_erl_nif_load_callback();
-  friend decltype(auto) __private__::get_erl_nif_unload_callback();
+  friend int __private__::load(ErlNifEnv *, void **, ERL_NIF_TERM) noexcept;
+  friend void __private__::unload(ErlNifEnv *, void *) noexcept;
 
   friend bool __private__::init_resources(ErlNifEnv *env);
 
@@ -1337,14 +1337,6 @@ inline std::vector<ErlNifFunc> &get_erl_nif_funcs() {
   return Registration::erl_nif_funcs;
 }
 
-inline decltype(auto) get_erl_nif_load_callback() {
-  return Registration::erl_nif_load_callback;
-}
-
-inline decltype(auto) get_erl_nif_unload_callback() {
-  return Registration::erl_nif_unload_callback;
-}
-
 inline int load(ErlNifEnv *caller_env, void **priv_data,
                 ERL_NIF_TERM load_info) noexcept {
   init_atoms(caller_env);
@@ -1354,8 +1346,8 @@ inline int load(ErlNifEnv *caller_env, void **priv_data,
   }
 
   try {
-    if (fine::__private__::get_erl_nif_load_callback()) {
-      std::invoke(fine::__private__::get_erl_nif_load_callback(), caller_env,
+    if (fine::Registration::erl_nif_load_callback) {
+      std::invoke(fine::Registration::erl_nif_load_callback, caller_env,
                   priv_data, load_info);
     }
   } catch (const std::exception &e) {
@@ -1370,8 +1362,8 @@ inline int load(ErlNifEnv *caller_env, void **priv_data,
 }
 
 inline void unload(ErlNifEnv *caller_env, void *priv_data) noexcept {
-  if (fine::__private__::get_erl_nif_unload_callback()) {
-    std::invoke(fine::__private__::get_erl_nif_unload_callback(), caller_env,
+  if (fine::Registration::erl_nif_unload_callback) {
+    std::invoke(fine::Registration::erl_nif_unload_callback, caller_env,
                 priv_data);
   }
 }
