@@ -425,7 +425,6 @@ FINE_NIF(shared_mutex_shared_lock_test, 0);
 
 class ResetEvent {
 public:
-public:
   explicit ResetEvent(const bool signaled = false) noexcept
       : m_signaled{signaled} {}
 
