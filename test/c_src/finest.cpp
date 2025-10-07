@@ -462,6 +462,16 @@ std::uint64_t hash_atom(ErlNifEnv *, fine::Atom atom) noexcept {
 }
 FINE_NIF(hash_atom, 0);
 
+static bool s_loaded = false;
+
+static auto load_registration = fine::Registration::register_load(
+    [](ErlNifEnv *, void **, ERL_NIF_TERM) { s_loaded = true; });
+
+static auto unload_registration = fine::Registration::register_unload(
+    [](ErlNifEnv *, void *) noexcept { s_loaded = false; });
+
+bool is_loaded(ErlNifEnv *) { return s_loaded; }
+FINE_NIF(is_loaded, 0);
 } // namespace finest
 
 FINE_INIT("Elixir.Finest.NIF");

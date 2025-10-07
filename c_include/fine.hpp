@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -47,7 +48,10 @@ template <typename T, typename SFINAE = void> struct Encoder;
 
 namespace __private__ {
 std::vector<ErlNifFunc> &get_erl_nif_funcs();
-int load(ErlNifEnv *env, void **priv_data, ERL_NIF_TERM load_info);
+void init_atoms(ErlNifEnv *env);
+bool init_resources(ErlNifEnv *env);
+int load(ErlNifEnv *, void **, ERL_NIF_TERM) noexcept;
+void unload(ErlNifEnv *, void *) noexcept;
 } // namespace __private__
 
 // Definitions
@@ -97,8 +101,7 @@ private:
   friend struct Decoder<Atom>;
   friend struct ::std::hash<Atom>;
 
-  friend int __private__::load(ErlNifEnv *env, void **priv_data,
-                               ERL_NIF_TERM load_info);
+  friend void __private__::init_atoms(ErlNifEnv *env);
 
   // We accumulate all globally defined atom objects and create the
   // terms upfront as part of init (called from the NIF load callback).
@@ -1187,6 +1190,12 @@ template <typename T> void raise(ErlNifEnv *env, const T &value) {
 // Mechanism for accumulating information via static object definitions.
 class Registration {
 public:
+  // A function compatible with the load callback of Erlang's NIFs.
+  using LoadCallback = std::function<void(ErlNifEnv *, void **, fine::Term)>;
+
+  // A function compatible with the unload callback of Erlang's NIFs.
+  using UnloadCallback = std::function<void(ErlNifEnv *, void *)>;
+
   template <typename T>
   static Registration register_resource(const char *name) {
     Registration::resources.push_back({&fine::ResourcePtr<T>::resource_type,
@@ -1197,6 +1206,26 @@ public:
 
   static Registration register_nif(ErlNifFunc erl_nif_func) {
     Registration::erl_nif_funcs.push_back(erl_nif_func);
+    return {};
+  }
+
+  // Registers a load callback.
+  static Registration register_load(LoadCallback callback) {
+    if (erl_nif_load_callback) {
+      throw std::logic_error("load callback already registered");
+    }
+
+    Registration::erl_nif_load_callback = callback;
+    return {};
+  }
+
+  // Registers an unload callback.
+  static Registration register_unload(UnloadCallback callback) {
+    if (erl_nif_unload_callback) {
+      throw std::logic_error("unload callback already registered");
+    }
+
+    Registration::erl_nif_unload_callback = callback;
     return {};
   }
 
@@ -1220,15 +1249,18 @@ private:
   }
 
   friend std::vector<ErlNifFunc> &__private__::get_erl_nif_funcs();
+  friend int __private__::load(ErlNifEnv *, void **, ERL_NIF_TERM) noexcept;
+  friend void __private__::unload(ErlNifEnv *, void *) noexcept;
 
-  friend int __private__::load(ErlNifEnv *env, void **priv_data,
-                               ERL_NIF_TERM load_info);
+  friend bool __private__::init_resources(ErlNifEnv *env);
 
   inline static std::vector<std::tuple<ErlNifResourceType **, const char *,
                                        void (*)(ErlNifEnv *, void *)>>
       resources = {};
 
   inline static std::vector<ErlNifFunc> erl_nif_funcs = {};
+  inline static LoadCallback erl_nif_load_callback = {};
+  inline static UnloadCallback erl_nif_unload_callback = {};
 };
 
 // NIF definitions
@@ -1295,23 +1327,49 @@ constexpr unsigned int nif_arity(Ret (*)(Args...)) {
 }
 
 namespace __private__ {
+void init_atoms(ErlNifEnv *env) { fine::Atom::init_atoms(env); }
+
+bool init_resources(ErlNifEnv *env) {
+  return fine::Registration::init_resources(env);
+}
+
 inline std::vector<ErlNifFunc> &get_erl_nif_funcs() {
   return Registration::erl_nif_funcs;
 }
 
-inline int load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
-  Atom::init_atoms(env);
+inline int load(ErlNifEnv *caller_env, void **priv_data,
+                ERL_NIF_TERM load_info) noexcept {
+  init_atoms(caller_env);
 
-  if (!Registration::init_resources(env)) {
+  if (!init_resources(caller_env)) {
+    return -1;
+  }
+
+  try {
+    if (fine::Registration::erl_nif_load_callback) {
+      std::invoke(fine::Registration::erl_nif_load_callback, caller_env,
+                  priv_data, load_info);
+    }
+  } catch (const std::exception &e) {
+    enif_fprintf(stderr, "unhandled exception: %s\n", e.what());
+    return -1;
+  } catch (...) {
+    enif_fprintf(stderr, "unhandled throw\n");
     return -1;
   }
 
   return 0;
 }
+
+inline void unload(ErlNifEnv *caller_env, void *priv_data) noexcept {
+  if (fine::Registration::erl_nif_unload_callback) {
+    std::invoke(fine::Registration::erl_nif_unload_callback, caller_env,
+                priv_data);
+  }
+}
 } // namespace __private__
 
 // Macros
-
 #define FINE_NIF(name, flags)                                                  \
   static ERL_NIF_TERM name##_nif(ErlNifEnv *env, int argc,                     \
                                  const ERL_NIF_TERM argv[]) {                  \
@@ -1345,16 +1403,16 @@ inline int load(ErlNifEnv *env, void **, ERL_NIF_TERM) {
     auto &nif_funcs = fine::__private__::get_erl_nif_funcs();                  \
     auto num_funcs = static_cast<int>(nif_funcs.size());                       \
     auto funcs = nif_funcs.data();                                             \
-    auto load = fine::__private__::load;                                       \
+                                                                               \
     static ErlNifEntry entry = {ERL_NIF_MAJOR_VERSION,                         \
                                 ERL_NIF_MINOR_VERSION,                         \
                                 name,                                          \
                                 num_funcs,                                     \
                                 funcs,                                         \
-                                load,                                          \
+                                fine::__private__::load,                       \
                                 NULL,                                          \
                                 NULL,                                          \
-                                NULL,                                          \
+                                fine::__private__::unload,                     \
                                 ERL_NIF_VM_VARIANT,                            \
                                 1,                                             \
                                 sizeof(ErlNifResourceTypeInit),                \
