@@ -1215,7 +1215,7 @@ public:
       throw std::logic_error("load callback already registered");
     }
 
-    return Registration::erl_nif_load_callback = callback;
+    Registration::erl_nif_load_callback = callback;
     return callback;
   }
 
