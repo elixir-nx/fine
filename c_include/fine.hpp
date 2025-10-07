@@ -1210,23 +1210,23 @@ public:
   }
 
   // Registers a load callback.
-  static LoadCallback register_load(LoadCallback callback) {
+  static Registration register_load(LoadCallback callback) {
     if (erl_nif_load_callback) {
       throw std::logic_error("load callback already registered");
     }
 
     Registration::erl_nif_load_callback = callback;
-    return callback;
+    return {};
   }
 
   // Registers an unload callback.
-  static UnloadCallback register_unload(UnloadCallback callback) {
+  static Registration register_unload(UnloadCallback callback) {
     if (erl_nif_unload_callback) {
       throw std::logic_error("unload callback already registered");
     }
 
     Registration::erl_nif_unload_callback = callback;
-    return callback;
+    return {};
   }
 
 private:
