@@ -84,5 +84,8 @@ defmodule Finest.NIF do
 
   def is_loaded(), do: err!()
 
+  def format_term(_term), do: err!()
+  def format_term_with_limit(_term, _limit), do: err!()
+
   defp err!(), do: :erlang.nif_error(:not_loaded)
 end

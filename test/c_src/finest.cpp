@@ -531,6 +531,17 @@ static auto unload_registration = fine::Registration::register_unload(
 
 bool is_loaded(ErlNifEnv *) { return s_loaded; }
 FINE_NIF(is_loaded, 0);
+
+std::string format_term(ErlNifEnv *env, fine::Term term) {
+  return fine::format_term(env, term);
+}
+FINE_NIF(format_term, 0);
+
+std::string format_term_with_limit(ErlNifEnv *env, fine::Term term,
+                                   uint64_t limit) {
+  return fine::format_term(env, term, limit);
+}
+FINE_NIF(format_term_with_limit, 0);
 } // namespace finest
 
 FINE_INIT("Elixir.Finest.NIF");
