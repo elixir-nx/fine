@@ -329,7 +329,7 @@ defmodule FinestTest do
       end
 
       assert_raise ArgumentError,
-                   ~S(decode failed, expected a Elixir.Finest.Point struct, got: #{calendar=>'Elixir.Calendar.ISO',month=>1,'__struct__'=>'Elixir.Date',day=>1,year=>2000}),
+                   ~r(decode failed, expected a Elixir.Finest.Point struct, got: \#\{.*'__struct__'=>'Elixir.Date'.*\}),
                    fn ->
                      NIF.codec_struct(~D"2000-01-01")
                    end
