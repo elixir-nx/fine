@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [v0.1.5](https://github.com/elixir-nx/fine/tree/v0.1.5) (2026-04-06)
+
+### Added
+
+- Encoding and decoding for `std::unordered_map` ([#14](https://github.com/elixir-nx/fine/pull/14))
+- Encoding and decoding for `std::multimap` and `std::unordered_multimap` ([#15](https://github.com/elixir-nx/fine/pull/15))
+- Support for `load` and `unload` NIF callbacks ([#16](https://github.com/elixir-nx/fine/pull/16))
+- Condition variable wrapper ([#17](https://github.com/elixir-nx/fine/pull/17))
+- Added `fine::format_term`
+- Improved decoding errors
+
 ## [v0.1.4](https://github.com/elixir-nx/fine/tree/v0.1.4) (2025-08-14)
 
 ### Added
