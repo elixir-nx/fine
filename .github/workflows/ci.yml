@@ -34,7 +34,6 @@ jobs:
           - { name: "macOS", id: "macos-14" }
         pair:
           - { elixir: "1.15.8", otp: "25.3" }
-          - { elixir: "1.18.2", otp: "27.2" }
           - { elixir: "1.19.5", otp: "28.4" }
     env:
       MIX_ENV: test
