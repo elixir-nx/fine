@@ -1367,9 +1367,9 @@ constexpr unsigned int nif_arity(Ret (*)(Args...)) {
 }
 
 namespace __private__ {
-void init_atoms(ErlNifEnv *env) { fine::Atom::init_atoms(env); }
+inline void init_atoms(ErlNifEnv *env) { fine::Atom::init_atoms(env); }
 
-bool init_resources(ErlNifEnv *env) {
+inline bool init_resources(ErlNifEnv *env) {
   return fine::Registration::init_resources(env);
 }
 
