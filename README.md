@@ -300,15 +300,51 @@ However, in some cases you may want to interact with NIF APIs as part
 of the destructor. In that case, you can implement a `destructor`
 callback on `T`, which receives the relevant `ErlNifEnv`:
 
+Fine resource callbacks correspond to members of
+[`ErlNifResourceTypeInit`](https://www.erlang.org/doc/apps/erts/erl_nif.html#ErlNifResourceTypeInit):
+
+| Fine callback  | `ErlNifResourceTypeInit` member |
+| -------------- | ------------------------------- |
+| `destructor`   | `dtor`                          |
+| `select_stop`  | `stop`                          |
+| `monitor_down` | `down`                          |
+| `dynamic_call` | `dyncall`                       |
+
+Callbacks are optional and are recognized from their prototypes:
+
 ```c++
 class Generator {
   // ...
 
   void destructor(ErlNifEnv *env) {
+    // Perform final cleanup that requires a NIF environment.
     // Example: send a message to some process using env
   }
+
+  void select_stop(ErlNifEnv *env, ErlNifEvent event, bool direct_call) {
+    // Handle enif_select stopping selection of event.
+  }
+
+  void monitor_down(ErlNifEnv *env, ErlNifPid pid, const ErlNifMonitor &monitor) {
+    // Handle termination of a process monitored by this resource.
+  }
+
+  void dynamic_call(ErlNifEnv *env, void *call_data) {
+    // Handle a call made with enif_dynamic_resource_call.
+  }
 };
+
+static_assert(fine::ResourcePtr<Generator>::has_destructor);
+static_assert(fine::ResourcePtr<Generator>::has_select_stop);
+static_assert(fine::ResourcePtr<Generator>::has_monitor_down);
+static_assert(fine::ResourcePtr<Generator>::has_dynamic_call);
 ```
+
+`ResourcePtr<T>` exposes a compile-time detection flag for each callback, as shown above.
+These flags can be used with `static_assert` to enforce required callbacks.
+For example, using `ERL_NIF_SELECT_STOP` without a recognized `select_stop` callback
+violates an NIF API precondition and may crash the BEAM: in release builds,
+the relevant assertion is compiled out, potentially resulting in a null function-pointer call.
 
 If defined, the `destructor` callback is called first, and then the
 `T` destructor is called as usual.
