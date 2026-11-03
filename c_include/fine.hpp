@@ -14,6 +14,7 @@
 #include <string_view>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -38,7 +39,65 @@
 
 namespace fine {
 
+// An error caused by a term that cannot be decoded as the requested type.
+//
+// The description is owned. The optional failing term belongs to its Erlang
+// environment and must stay within that environment's lifetime and thread.
+class DecodeError {
+public:
+  // Creates an error with a description and an optional failing term.
+  explicit DecodeError(std::string message,
+                       std::optional<ERL_NIF_TERM> term = std::nullopt)
+      : message_(std::move(message)), term_(term) {}
+
+  // Returns the description, appending the formatted failing term if present.
+  //
+  // The stored term must still be valid in env. The returned string owns
+  // its data and can outlive the environment.
+  std::string message(ErlNifEnv *env) const;
+
+private:
+  std::string message_;
+  std::optional<ERL_NIF_TERM> term_;
+};
+
+// The result of decoding a term, containing either a value or a DecodeError.
+template <typename T> class DecodeResult {
+  using Value = std::remove_cv_t<T>;
+
+public:
+  // Creates a successful result with the given value.
+  DecodeResult(Value value) : value_(std::move(value)) {}
+  // Creates a failed result with the given error.
+  DecodeResult(DecodeError error) : error_(std::move(error)) {}
+
+  // Returns true if the result contains a decoded value.
+  explicit operator bool() const noexcept { return value_.has_value(); }
+
+  // Returns the decoded value.
+  //
+  // Throws std::bad_optional_access if the result contains an error.
+  Value &value() & { return value_.value(); }
+  const Value &value() const & { return value_.value(); }
+  Value &&value() && { return std::move(value_).value(); }
+
+  // Returns the decoding error.
+  //
+  // Throws std::bad_optional_access if the result contains a value.
+  DecodeError &error() & { return error_.value(); }
+  const DecodeError &error() const & { return error_.value(); }
+  DecodeError &&error() && { return std::move(error_).value(); }
+
+private:
+  std::optional<Value> value_;
+  std::optional<DecodeError> error_;
+};
+
 // Forward declarations
+
+template <typename T>
+DecodeResult<std::remove_cv_t<T>> try_decode(ErlNifEnv *env,
+                                             const ERL_NIF_TERM &term);
 
 template <typename T> T decode(ErlNifEnv *env, const ERL_NIF_TERM &term);
 template <typename T> ERL_NIF_TERM encode(ErlNifEnv *env, const T &value);
@@ -400,11 +459,36 @@ inline std::string format_term(ErlNifEnv *, ERL_NIF_TERM term,
   return buffer;
 }
 
+inline std::string DecodeError::message(ErlNifEnv *env) const {
+  if (term_) {
+    return message_ + ", got: " + format_term(env, *term_);
+  }
+  return message_;
+}
+
 // Decodes the given Erlang term as a value of the specified type.
 //
-// The given type must have a specialized Decoder<T> implementation.
+// Returns DecodeError if the term cannot be decoded. Other exceptions,
+// such as allocation errors, still propagate.
+//
+// The given type must have a specialized Decoder<T> implementation with
+// try_decode().
+template <typename T>
+DecodeResult<std::remove_cv_t<T>> try_decode(ErlNifEnv *env,
+                                             const ERL_NIF_TERM &term) {
+  return Decoder<std::remove_cv_t<T>>::try_decode(env, term);
+}
+
+// Decodes the given Erlang term as a value of the specified type.
+//
+// The given type must have a specialized Decoder<T> implementation with
+// try_decode(). Throws std::invalid_argument if the term cannot be decoded.
 template <typename T> T decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-  return Decoder<std::remove_cv_t<T>>::decode(env, term);
+  auto result = try_decode<T>(env, term);
+  if (!result) {
+    throw std::invalid_argument(result.error().message(env));
+  }
+  return std::move(result).value();
 }
 
 // Encodes the given value as a Erlang term.
@@ -433,49 +517,49 @@ template <typename T, typename> struct Decoder {};
 template <typename T, typename> struct Encoder {};
 
 template <> struct Decoder<Term> {
-  static Term decode(ErlNifEnv *, const ERL_NIF_TERM &term) {
+  static DecodeResult<Term> try_decode(ErlNifEnv *, const ERL_NIF_TERM &term) {
     return Term(term);
   }
 };
 
 template <> struct Decoder<int64_t> {
-  static int64_t decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<int64_t> try_decode(ErlNifEnv *env,
+                                          const ERL_NIF_TERM &term) {
     int64_t integer;
     if (!enif_get_int64(env, term,
                         reinterpret_cast<ErlNifSInt64 *>(&integer))) {
-      throw std::invalid_argument("decode failed, expected an integer, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected an integer", term};
     }
     return integer;
   }
 };
 
 template <> struct Decoder<uint64_t> {
-  static uint64_t decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<uint64_t> try_decode(ErlNifEnv *env,
+                                           const ERL_NIF_TERM &term) {
     uint64_t integer;
     if (!enif_get_uint64(env, term,
                          reinterpret_cast<ErlNifUInt64 *>(&integer))) {
-      throw std::invalid_argument(
-          "decode failed, expected an unsigned integer, got: " +
-          format_term(env, term));
+      return DecodeError{"decode failed, expected an unsigned integer", term};
     }
     return integer;
   }
 };
 
 template <> struct Decoder<double> {
-  static double decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<double> try_decode(ErlNifEnv *env,
+                                         const ERL_NIF_TERM &term) {
     double number;
     if (!enif_get_double(env, term, &number)) {
-      throw std::invalid_argument("decode failed, expected a float, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a float", term};
     }
     return number;
   }
 };
 
 template <> struct Decoder<bool> {
-  static bool decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<bool> try_decode(ErlNifEnv *env,
+                                       const ERL_NIF_TERM &term) {
     char atom_string[6];
     auto length = enif_get_atom(env, term, atom_string, 6, ERL_NIF_LATIN1);
 
@@ -487,43 +571,47 @@ template <> struct Decoder<bool> {
       return false;
     }
 
-    throw std::invalid_argument("decode failed, expected a boolean, got: " +
-                                format_term(env, term));
+    return DecodeError{"decode failed, expected a boolean", term};
   }
 };
 
 template <> struct Decoder<ErlNifPid> {
-  static ErlNifPid decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<ErlNifPid> try_decode(ErlNifEnv *env,
+                                            const ERL_NIF_TERM &term) {
     ErlNifPid pid;
     if (!enif_is_pid(env, term)) {
-      throw std::invalid_argument("decode failed, expected a local pid, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a local pid", term};
     }
     if (!enif_get_local_pid(env, term, &pid)) {
       // If the term is a PID and it is not local, it means it's a remote PID.
-      throw std::invalid_argument("decode failed, expected a local pid, but "
-                                  "got a remote one. NIFs can "
-                                  "only send messages to local PIDs and "
-                                  "remote PIDs cannot be decoded");
+      return DecodeError{"decode failed, expected a local pid, but "
+                         "got a remote one. NIFs can "
+                         "only send messages to local PIDs and "
+                         "remote PIDs cannot be decoded"};
     }
     return pid;
   }
 };
 
 template <> struct Decoder<ErlNifBinary> {
-  static ErlNifBinary decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<ErlNifBinary> try_decode(ErlNifEnv *env,
+                                               const ERL_NIF_TERM &term) {
     ErlNifBinary binary;
     if (!enif_inspect_binary(env, term, &binary)) {
-      throw std::invalid_argument("decode failed, expected a binary, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a binary", term};
     }
     return binary;
   }
 };
 
 template <> struct Decoder<std::string_view> {
-  static std::string_view decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    auto binary = fine::decode<ErlNifBinary>(env, term);
+  static DecodeResult<std::string_view> try_decode(ErlNifEnv *env,
+                                                   const ERL_NIF_TERM &term) {
+    auto result = fine::try_decode<ErlNifBinary>(env, term);
+    if (!result) {
+      return std::move(result).error();
+    }
+    auto &binary = result.value();
     return std::string_view(reinterpret_cast<const char *>(binary.data),
                             binary.size);
   }
@@ -533,17 +621,22 @@ template <typename Alloc>
 struct Decoder<std::basic_string<char, std::char_traits<char>, Alloc>> {
   using string = std::basic_string<char, std::char_traits<char>, Alloc>;
 
-  static string decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    return string(fine::decode<std::string_view>(env, term));
+  static DecodeResult<string> try_decode(ErlNifEnv *env,
+                                         const ERL_NIF_TERM &term) {
+    auto result = fine::try_decode<std::string_view>(env, term);
+    if (!result) {
+      return std::move(result).error();
+    }
+    return string(result.value());
   }
 };
 
 template <> struct Decoder<Atom> {
-  static Atom decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<Atom> try_decode(ErlNifEnv *env,
+                                       const ERL_NIF_TERM &term) {
     unsigned int length;
     if (!enif_get_atom_length(env, term, &length, FINE_ERL_NIF_CHAR_ENCODING)) {
-      throw std::invalid_argument("decode failed, expected an atom, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected an atom", term};
     }
 
     auto buffer = std::make_unique<char[]>(length + 1);
@@ -551,8 +644,7 @@ template <> struct Decoder<Atom> {
     // Note that enif_get_atom writes the NULL byte at the end
     if (!enif_get_atom(env, term, buffer.get(), length + 1,
                        FINE_ERL_NIF_CHAR_ENCODING)) {
-      throw std::invalid_argument("decode failed, expected an atom, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected an atom", term};
     }
 
     return Atom(std::string(buffer.get(), length));
@@ -560,100 +652,106 @@ template <> struct Decoder<Atom> {
 };
 
 template <typename T> struct Decoder<std::optional<T>> {
-  static std::optional<T> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<std::optional<T>> try_decode(ErlNifEnv *env,
+                                                   const ERL_NIF_TERM &term) {
     char atom_string[4];
-    if (enif_get_atom(env, term, atom_string, 4, ERL_NIF_LATIN1) == 4) {
-      if (strcmp(atom_string, "nil") == 0) {
-        return std::nullopt;
-      }
+    if (enif_get_atom(env, term, atom_string, 4, ERL_NIF_LATIN1) == 4 &&
+        strcmp(atom_string, "nil") == 0) {
+      return std::optional<T>();
     }
 
-    return fine::decode<T>(env, term);
+    auto result = fine::try_decode<T>(env, term);
+    if (!result) {
+      return std::move(result).error();
+    }
+    return std::optional<T>(std::move(result).value());
   }
 };
 
 template <typename... Args> struct Decoder<std::variant<Args...>> {
-  static std::variant<Args...> decode(ErlNifEnv *env,
-                                      const ERL_NIF_TERM &term) {
-    return do_decode<Args...>(env, term);
+  using Variant = std::variant<Args...>;
+
+  static DecodeResult<Variant> try_decode(ErlNifEnv *env,
+                                          const ERL_NIF_TERM &term) {
+    return do_decode<0>(env, term);
   }
 
 private:
-  template <typename T, typename... Rest>
-  static std::variant<Args...> do_decode(ErlNifEnv *env,
+  template <std::size_t Index>
+  static DecodeResult<Variant> do_decode(ErlNifEnv *env,
                                          const ERL_NIF_TERM &term) {
-    try {
-      return fine::decode<T>(env, term);
-    } catch (const std::invalid_argument &) {
-      if constexpr (sizeof...(Rest) > 0) {
-        return do_decode<Rest...>(env, term);
-      } else {
-        throw std::invalid_argument(
-            "decode failed, none of the variant types could be decoded, got: " +
-            format_term(env, term));
+    if constexpr (Index == sizeof...(Args)) {
+      return DecodeError{
+          "decode failed, none of the variant types could be decoded", term};
+    } else {
+      using T = std::variant_alternative_t<Index, Variant>;
+      auto result = fine::try_decode<T>(env, term);
+      if (result) {
+        return Variant(std::in_place_index<Index>, std::move(result).value());
       }
+      return do_decode<Index + 1>(env, term);
     }
   }
 };
 
 template <typename... Args> struct Decoder<std::tuple<Args...>> {
-  static std::tuple<Args...> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    constexpr auto expected_size = sizeof...(Args);
+  using Tuple = std::tuple<Args...>;
 
+  static DecodeResult<Tuple> try_decode(ErlNifEnv *env,
+                                        const ERL_NIF_TERM &term) {
+    constexpr auto expected_size = sizeof...(Args);
     int size;
     const ERL_NIF_TERM *terms;
     if (!enif_get_tuple(env, term, &size, &terms)) {
-      throw std::invalid_argument("decode failed, expected a tuple, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a tuple", term};
     }
-
     if (size != expected_size) {
-      throw std::invalid_argument("decode failed, expected tuple to have " +
-                                  std::to_string(expected_size) +
-                                  " elements, but had " + std::to_string(size) +
-                                  ", got: " + format_term(env, term));
+      return DecodeError{"decode failed, expected tuple to have " +
+                             std::to_string(expected_size) +
+                             " elements, but had " + std::to_string(size),
+                         term};
     }
-
-    return do_decode(env, terms, std::make_index_sequence<sizeof...(Args)>());
+    return do_decode<0>(env, terms);
   }
 
 private:
-  template <std::size_t... Indices>
-  static std::tuple<Args...> do_decode(ErlNifEnv *env,
-                                       const ERL_NIF_TERM *terms,
-                                       std::index_sequence<Indices...>) {
-    return std::make_tuple(fine::decode<Args>(env, terms[Indices])...);
+  template <std::size_t Index, typename... Values>
+  static DecodeResult<Tuple>
+  do_decode(ErlNifEnv *env, const ERL_NIF_TERM *terms, Values &&...values) {
+    if constexpr (Index == sizeof...(Args)) {
+      return Tuple(std::forward<Values>(values)...);
+    } else {
+      using T = std::tuple_element_t<Index, Tuple>;
+      auto result = fine::try_decode<T>(env, terms[Index]);
+      if (!result) {
+        return std::move(result).error();
+      }
+      return do_decode<Index + 1>(env, terms, std::forward<Values>(values)...,
+                                  std::move(result).value());
+    }
   }
 };
 
 template <typename T1, typename T2> struct Decoder<std::pair<T1, T2>> {
-  static std::pair<T1, T2> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-    int size;
-    const ERL_NIF_TERM *terms;
-    if (!enif_get_tuple(env, term, &size, &terms)) {
-      throw std::invalid_argument("decode failed, expected a tuple, got: " +
-                                  format_term(env, term));
+  static DecodeResult<std::pair<T1, T2>> try_decode(ErlNifEnv *env,
+                                                    const ERL_NIF_TERM &term) {
+    auto result = fine::try_decode<std::tuple<T1, T2>>(env, term);
+    if (!result) {
+      return std::move(result).error();
     }
-
-    if (size != 2) {
-      throw std::invalid_argument(
-          "decode failed, expected tuple to have 2 elements, but had " +
-          std::to_string(size) + ", got: " + format_term(env, term));
-    }
-
-    return std::make_pair(fine::decode<T1>(env, terms[0]),
-                          fine::decode<T2>(env, terms[1]));
+    auto &tuple = result.value();
+    return std::pair<T1, T2>(std::move(std::get<0>(tuple)),
+                             std::move(std::get<1>(tuple)));
   }
 };
 
 template <typename T, typename Alloc> struct Decoder<std::vector<T, Alloc>> {
-  static std::vector<T, Alloc> decode(ErlNifEnv *env,
-                                      const ERL_NIF_TERM &term) {
+  static DecodeResult<std::vector<T, Alloc>>
+  try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
     unsigned int length;
 
     if (!enif_get_list_length(env, term, &length)) {
-      throw std::invalid_argument("decode failed, expected a list, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a list", term};
     }
 
     std::vector<T, Alloc> vector;
@@ -663,8 +761,11 @@ template <typename T, typename Alloc> struct Decoder<std::vector<T, Alloc>> {
 
     ERL_NIF_TERM head, tail;
     while (enif_get_list_cell(env, list, &head, &tail)) {
-      auto elem = fine::decode<T>(env, head);
-      vector.emplace_back(std::move(elem));
+      auto elem_result = fine::try_decode<T>(env, head);
+      if (!elem_result) {
+        return std::move(elem_result).error();
+      }
+      vector.emplace_back(std::move(elem_result).value());
       list = tail;
     }
 
@@ -674,26 +775,32 @@ template <typename T, typename Alloc> struct Decoder<std::vector<T, Alloc>> {
 
 template <typename K, typename V, typename Compare, typename Alloc>
 struct Decoder<std::map<K, V, Compare, Alloc>> {
-  static std::map<K, V, Compare, Alloc> decode(ErlNifEnv *env,
-                                               const ERL_NIF_TERM &term) {
+  static DecodeResult<std::map<K, V, Compare, Alloc>>
+  try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
     std::map<K, V, Compare, Alloc> map;
 
     ERL_NIF_TERM key_term, value_term;
     ErlNifMapIterator iter;
     if (!enif_map_iterator_create(env, term, &iter,
                                   ERL_NIF_MAP_ITERATOR_FIRST)) {
-      throw std::invalid_argument("decode failed, expected a map, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a map", term};
     }
 
     // Define RAII cleanup for the iterator
     auto cleanup = IterCleanup{env, iter};
 
     while (enif_map_iterator_get_pair(env, &iter, &key_term, &value_term)) {
-      auto key = fine::decode<K>(env, key_term);
-      auto value = fine::decode<V>(env, value_term);
+      auto key_result = fine::try_decode<K>(env, key_term);
+      if (!key_result) {
+        return std::move(key_result).error();
+      }
+      auto value_result = fine::try_decode<V>(env, value_term);
+      if (!value_result) {
+        return std::move(value_result).error();
+      }
 
-      map.insert_or_assign(std::move(key), std::move(value));
+      map.insert_or_assign(std::move(key_result).value(),
+                           std::move(value_result).value());
 
       enif_map_iterator_next(env, &iter);
     }
@@ -712,26 +819,32 @@ private:
 
 template <typename K, typename V, typename Hash, typename Pred, typename Alloc>
 struct Decoder<std::unordered_map<K, V, Hash, Pred, Alloc>> {
-  static std::unordered_map<K, V, Hash, Pred, Alloc>
-  decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<std::unordered_map<K, V, Hash, Pred, Alloc>>
+  try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
     std::unordered_map<K, V, Hash, Pred, Alloc> map;
 
     ERL_NIF_TERM key_term, value_term;
     ErlNifMapIterator iter;
     if (!enif_map_iterator_create(env, term, &iter,
                                   ERL_NIF_MAP_ITERATOR_FIRST)) {
-      throw std::invalid_argument("decode failed, expected a map, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a map", term};
     }
 
     // Define RAII cleanup for the iterator
     auto cleanup = IterCleanup{env, iter};
 
     while (enif_map_iterator_get_pair(env, &iter, &key_term, &value_term)) {
-      auto key = fine::decode<K>(env, key_term);
-      auto value = fine::decode<V>(env, value_term);
+      auto key_result = fine::try_decode<K>(env, key_term);
+      if (!key_result) {
+        return std::move(key_result).error();
+      }
+      auto value_result = fine::try_decode<V>(env, value_term);
+      if (!value_result) {
+        return std::move(value_result).error();
+      }
 
-      map.insert_or_assign(std::move(key), std::move(value));
+      map.insert_or_assign(std::move(key_result).value(),
+                           std::move(value_result).value());
 
       enif_map_iterator_next(env, &iter);
     }
@@ -750,13 +863,12 @@ private:
 
 template <typename K, typename V, typename Compare, typename Alloc>
 struct Decoder<std::multimap<K, V, Compare, Alloc>> {
-  static std::multimap<K, V, Compare, Alloc> decode(ErlNifEnv *env,
-                                                    const ERL_NIF_TERM &term) {
+  static DecodeResult<std::multimap<K, V, Compare, Alloc>>
+  try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
     unsigned int length;
 
     if (!enif_get_list_length(env, term, &length)) {
-      throw std::invalid_argument("decode failed, expected a list, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a list", term};
     }
 
     std::multimap<K, V, Compare, Alloc> map;
@@ -765,9 +877,11 @@ struct Decoder<std::multimap<K, V, Compare, Alloc>> {
 
     ERL_NIF_TERM head, tail;
     while (enif_get_list_cell(env, list, &head, &tail)) {
-      auto entry = fine::decode<std::pair<const K, V>>(env, head);
-
-      map.emplace(std::move(entry));
+      auto entry_result = fine::try_decode<std::pair<const K, V>>(env, head);
+      if (!entry_result) {
+        return std::move(entry_result).error();
+      }
+      map.emplace(std::move(entry_result).value());
 
       list = tail;
     }
@@ -778,13 +892,12 @@ struct Decoder<std::multimap<K, V, Compare, Alloc>> {
 
 template <typename K, typename V, typename Hash, typename Pred, typename Alloc>
 struct Decoder<std::unordered_multimap<K, V, Hash, Pred, Alloc>> {
-  static std::unordered_multimap<K, V, Hash, Pred, Alloc>
-  decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<std::unordered_multimap<K, V, Hash, Pred, Alloc>>
+  try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
     unsigned int length;
 
     if (!enif_get_list_length(env, term, &length)) {
-      throw std::invalid_argument("decode failed, expected a list, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a list", term};
     }
 
     std::unordered_multimap<K, V, Hash, Pred, Alloc> map;
@@ -793,9 +906,11 @@ struct Decoder<std::unordered_multimap<K, V, Hash, Pred, Alloc>> {
 
     ERL_NIF_TERM head, tail;
     while (enif_get_list_cell(env, list, &head, &tail)) {
-      auto entry = fine::decode<std::pair<const K, V>>(env, head);
-
-      map.emplace(std::move(entry));
+      auto entry_result = fine::try_decode<std::pair<const K, V>>(env, head);
+      if (!entry_result) {
+        return std::move(entry_result).error();
+      }
+      map.emplace(std::move(entry_result).value());
 
       list = tail;
     }
@@ -805,14 +920,13 @@ struct Decoder<std::unordered_multimap<K, V, Hash, Pred, Alloc>> {
 };
 
 template <typename T> struct Decoder<ResourcePtr<T>> {
-  static ResourcePtr<T> decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<ResourcePtr<T>> try_decode(ErlNifEnv *env,
+                                                 const ERL_NIF_TERM &term) {
     void *ptr;
     auto type = ResourcePtr<T>::resource_type;
 
     if (!enif_get_resource(env, term, type, &ptr)) {
-      throw std::invalid_argument(
-          "decode failed, expected a resource reference, got: " +
-          format_term(env, term));
+      return DecodeError{"decode failed, expected a resource reference", term};
     }
 
     enif_keep_resource(ptr);
@@ -824,50 +938,58 @@ template <typename T> struct Decoder<ResourcePtr<T>> {
 
 template <typename T>
 struct Decoder<T, std::void_t<decltype(T::module), decltype(T::fields)>> {
-  static T decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+  static DecodeResult<T> try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
     ERL_NIF_TERM struct_value;
     if (!enif_get_map_value(env, term,
                             encode(env, __private__::atoms::__struct__),
                             &struct_value)) {
-      throw std::invalid_argument("decode failed, expected a struct, got: " +
-                                  format_term(env, term));
+      return DecodeError{"decode failed, expected a struct", term};
     }
 
     // Make sure __struct__ matches
     const auto &struct_atom = *T::module;
     if (enif_compare(struct_value, encode(env, struct_atom)) != 0) {
-      throw std::invalid_argument("decode failed, expected a " +
-                                  struct_atom.to_string() +
-                                  " struct, got: " + format_term(env, term));
+      return DecodeError{"decode failed, expected a " +
+                             struct_atom.to_string() + " struct",
+                         term};
     }
 
-    T ex_struct;
-
+    T ex_struct{};
+    std::optional<DecodeError> error;
     constexpr auto fields = T::fields();
-
     std::apply(
         [&](auto... field) {
-          (set_field(env, term, ex_struct, std::get<0>(field),
-                     std::get<1>(field)),
-           ...);
+          return (set_field(env, term, ex_struct, std::get<0>(field),
+                            std::get<1>(field), error) &&
+                  ...);
         },
         fields);
-
-    return ex_struct;
+    if (error) {
+      return std::move(*error);
+    }
+    return std::move(ex_struct);
   }
 
 private:
   template <typename U>
-  static void set_field(ErlNifEnv *env, ERL_NIF_TERM term, T &ex_struct,
-                        U T::*field_ptr, const Atom *atom) {
+  static bool set_field(ErlNifEnv *env, ERL_NIF_TERM term, T &ex_struct,
+                        U T::*field_ptr, const Atom *atom,
+                        std::optional<DecodeError> &error) {
     ERL_NIF_TERM value;
     if (!enif_get_map_value(env, term, encode(env, *atom), &value)) {
-      throw std::invalid_argument(
-          "decode failed, expected the struct to have " + atom->to_string() +
-          " field, got: " + format_term(env, term));
+      error = DecodeError{"decode failed, expected the struct to have " +
+                              atom->to_string() + " field",
+                          term};
+      return false;
     }
 
-    ex_struct.*(field_ptr) = fine::decode<U>(env, value);
+    auto result = fine::try_decode<U>(env, value);
+    if (!result) {
+      error = std::move(result).error();
+      return false;
+    }
+    ex_struct.*field_ptr = std::move(result).value();
+    return true;
   }
 };
 

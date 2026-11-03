@@ -132,6 +132,22 @@ auto term = fine::encode(env, message);
 auto message = fine::decode<std::string>(env, term);
 ```
 
+`fine::decode<T>` throws `std::invalid_argument` if the term cannot be
+decoded. Use `fine::try_decode<T>` to get a `fine::DecodeResult<T>` instead:
+
+```c++
+auto result = fine::try_decode<int64_t>(env, term);
+if (result) {
+  auto value = std::move(result).value();
+} else {
+  auto message = result.error().message(env);
+}
+```
+
+The result contains either a value or a `fine::DecodeError`.
+`DecodeError::message(env)` formats the error, including the failing term.
+Other exceptions, such as allocation errors, still propagate.
+
 Fine provides implementations for the following types:
 
 | C++ Type                             | Encoder | Decoder | Elixir Type                 |
@@ -216,8 +232,9 @@ the following specializations:
 // Note that the specialization must be defined in the `fine` namespace.
 namespace fine {
   template <> struct Decoder<MyType> {
-    static MyType decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
-      // ...
+    static DecodeResult<MyType>
+    try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+      // Return MyType or DecodeError{description, term}.
     }
   };
 
@@ -228,6 +245,9 @@ namespace fine {
   };
 }
 ```
+
+Return `DecodeError{description, term}` for invalid input. Omit `term` to
+use the description as the complete message.
 
 ## Resource objects
 

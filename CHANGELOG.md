@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## Unreleased
+
+### Added
+
+- Added `fine::try_decode<T>`, which does not throw when the type does not match.
+
+### Changed
+
+- **(Breaking)** Changed the `Decoder<T>` interface to require `try_decode` instead of `decode`. Custom decoders must return `fine::DecodeResult<T>`.
+
 ## [v0.1.6](https://github.com/elixir-nx/fine/tree/v0.1.6) (2026-04-09)
 
 ### Fixed

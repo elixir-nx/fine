@@ -83,6 +83,32 @@ struct ExError {
 template <typename T, typename E>
 using Result = std::variant<fine::Ok<T>, fine::Error<E>>;
 
+template <typename T> struct FailingAllocator {
+  using value_type = T;
+  T *allocate(std::size_t) { throw std::bad_alloc(); }
+  void deallocate(T *, std::size_t) {}
+};
+
+Result<int64_t, std::string> try_decode_int64(ErlNifEnv *env, fine::Term term) {
+  auto result = fine::try_decode<const int64_t>(env, term);
+  if (!result) {
+    return fine::Error(result.error().message(env));
+  }
+  return fine::Ok(result.value());
+}
+FINE_NIF(try_decode_int64, 0);
+
+bool try_decode_allocation_error(ErlNifEnv *env, fine::Term term) {
+  using Vector = std::vector<int64_t, FailingAllocator<int64_t>>;
+  try {
+    fine::try_decode<std::variant<Vector, fine::Term>>(env, term);
+    return false;
+  } catch (const std::bad_alloc &) {
+    return true;
+  }
+}
+FINE_NIF(try_decode_allocation_error, 0);
+
 int64_t add(ErlNifEnv *, int64_t x, int64_t y) { return x + y; }
 FINE_NIF(add, 0);
 
@@ -148,6 +174,13 @@ codec_variant_int64_or_string(ErlNifEnv *,
   return term;
 }
 FINE_NIF(codec_variant_int64_or_string, 0);
+
+using TupleVariant = std::variant<std::tuple<int64_t, std::string>,
+                                  std::tuple<std::string, int64_t>>;
+TupleVariant codec_variant_tuples(ErlNifEnv *, TupleVariant value) {
+  return value;
+}
+FINE_NIF(codec_variant_tuples, 0);
 
 std::tuple<int64_t, std::string>
 codec_tuple_int64_and_string(ErlNifEnv *,
