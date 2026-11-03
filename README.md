@@ -55,7 +55,7 @@ Add `Fine` as a dependency in your `mix.exs`:
 ```elixir
 def deps do
   [
-    {:fine, "~> 0.1.0", runtime: false}
+    {:fine, "~> 0.2.0", runtime: false}
   ]
 end
 ```
