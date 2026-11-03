@@ -7,6 +7,21 @@ defmodule FinestTest do
     assert NIF.add(1, 2) == 3
   end
 
+  describe "try_decode" do
+    test "returns values and formats errors on request" do
+      assert NIF.try_decode_int64(42) == {:ok, 42}
+
+      assert NIF.try_decode_int64(:hello) ==
+               {:error, "decode failed, expected an integer, got: hello"}
+    end
+
+    test "propagates allocation errors instead of trying another alternative" do
+      assert NIF.try_decode_allocation_error([1])
+      assert NIF.try_decode_allocation_error(["value"])
+      refute NIF.try_decode_allocation_error(:not_a_list)
+    end
+  end
+
   describe "codec" do
     test "term" do
       assert NIF.codec_term(10) == 10
@@ -126,6 +141,10 @@ defmodule FinestTest do
                    fn ->
                      NIF.codec_variant_int64_or_string(10.0)
                    end
+
+      assert NIF.codec_variant_tuples({42, "value"}) == {42, "value"}
+      assert NIF.codec_variant_tuples({"value", 42}) == {"value", 42}
+      assert_raise ArgumentError, fn -> NIF.codec_variant_tuples({:invalid, 42}) end
     end
 
     test "tuple" do
@@ -332,6 +351,12 @@ defmodule FinestTest do
                    ~r(decode failed, expected a Elixir.Finest.Point struct, got: \#\{.*'__struct__'=>'Elixir.Date'.*\}),
                    fn ->
                      NIF.codec_struct(~D"2000-01-01")
+                   end
+
+      assert_raise ArgumentError,
+                   ~s(decode failed, expected an integer, got: <<"invalid">>),
+                   fn ->
+                     NIF.codec_struct(%Finest.Point{x: "invalid", y: 2})
                    end
     end
 

@@ -12,6 +12,9 @@ defmodule Finest.NIF do
     end
   end
 
+  def try_decode_int64(_term), do: err!()
+  def try_decode_allocation_error(_term), do: err!()
+
   def add(_x, _y), do: err!()
 
   def codec_term(_term), do: err!()
@@ -28,6 +31,7 @@ defmodule Finest.NIF do
   def codec_nullopt(), do: err!()
   def codec_optional_int64(_term), do: err!()
   def codec_variant_int64_or_string(_term), do: err!()
+  def codec_variant_tuples(_term), do: err!()
   def codec_tuple_int64_and_string(_term), do: err!()
   def codec_result_string_int64_ok(_term), do: err!()
   def codec_result_string_int64_error(_term), do: err!()
