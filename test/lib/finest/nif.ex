@@ -59,6 +59,9 @@ defmodule Finest.NIF do
   def resource_create(_pid), do: err!()
   def resource_get(_resource), do: err!()
   def resource_binary(_resource), do: err!()
+  def resource_monitor_process(_resource, _pid), do: err!()
+  def resource_select_stop(_resource), do: err!()
+  def resource_dyncall_op(_resource, _op, _x, _y), do: err!()
 
   def make_new_binary(), do: err!()
 

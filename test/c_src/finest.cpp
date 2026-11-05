@@ -1,4 +1,5 @@
 #include <atomic>
+#include <cstdint>
 #include <cstring>
 #include <exception>
 #include <functional>
@@ -8,18 +9,65 @@
 #include <thread>
 #include <unordered_map>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <sys/socket.h>
+#include <unistd.h>
+#endif
+
 #include <erl_nif.h>
 #include <fine.hpp>
 #include <fine/sync.hpp>
 
 namespace finest {
 
+namespace {
+#ifdef _WIN32
+ErlNifEvent create_test_event() {
+  return CreateEventW(nullptr, FALSE, FALSE, nullptr);
+}
+
+bool is_valid_test_event(ErlNifEvent event) { return event != nullptr; }
+
+bool close_test_event(ErlNifEvent event) {
+  return CloseHandle(event) != FALSE;
+}
+
+int64_t test_event_id(ErlNifEvent event) {
+  return static_cast<int64_t>(reinterpret_cast<std::intptr_t>(event));
+}
+#else
+ErlNifEvent create_test_event() { return socket(AF_INET, SOCK_DGRAM, 0); }
+
+bool is_valid_test_event(ErlNifEvent event) { return event >= 0; }
+
+bool close_test_event(ErlNifEvent event) { return close(event) == 0; }
+
+int64_t test_event_id(ErlNifEvent event) {
+  return static_cast<int64_t>(event);
+}
+#endif
+} // namespace
+
 namespace atoms {
+auto ElixirFinestNIF = fine::Atom("Elixir.Finest.NIF");
+auto TestResource = fine::Atom("TestResource");
 auto ElixirFinestError = fine::Atom("Elixir.Finest.Error");
 auto ElixirFinestPoint = fine::Atom("Elixir.Finest.Point");
 auto data = fine::Atom("data");
 auto destructor_with_env = fine::Atom("destructor_with_env");
 auto destructor_default = fine::Atom("destructor_default");
+auto error = fine::Atom("error");
+auto down = fine::Atom("down");
+auto nil = fine::Atom("nil");
+auto undefined = fine::Atom("undefined");
 auto x = fine::Atom("x");
 auto y = fine::Atom("y");
 } // namespace atoms
@@ -27,9 +75,16 @@ auto y = fine::Atom("y");
 struct TestResource {
   ErlNifPid pid;
   std::string binary;
+  using DyncallData = struct {
+      int64_t op; // char: '+', '-', '*', '/'
+      int64_t x;
+      int64_t y;
+      int64_t res;
+  };
 
   TestResource(ErlNifPid pid) : pid(pid), binary("hello world") {}
 
+  // {dtor}
   void destructor(ErlNifEnv *env) {
     auto msg_env = enif_alloc_env();
     auto msg = fine::encode(msg_env, atoms::destructor_with_env);
@@ -53,8 +108,51 @@ struct TestResource {
 
     thread.detach();
   }
+
+  // {stop}
+  void select_stop(ErlNifEnv* env, ErlNifEvent event, bool direct_call) {
+    auto msg_env = enif_alloc_env();
+    fine::Term msg;
+    if (close_test_event(event)) {
+      msg = fine::encode(msg_env, fine::Ok(std::make_tuple(test_event_id(event), direct_call)));
+    }
+    else {
+      msg = fine::encode(msg_env, atoms::error);
+    }
+    enif_send(env, &this->pid, msg_env, msg);
+    enif_free_env(msg_env);
+  }
+
+  // {down}
+  void monitor_down(ErlNifEnv* env, ErlNifPid mon_pid, const ErlNifMonitor& mon) {
+    auto msg_env = enif_alloc_env();
+    auto msg = enif_make_tuple3(msg_env,
+                                fine::encode(msg_env, atoms::down),
+                                enif_make_monitor_term(msg_env, &mon),
+                                fine::encode(msg_env, mon_pid));
+    enif_send(env, &this->pid, msg_env, msg);
+    enif_free_env(msg_env);
+  }
+
+  // {dyncall}
+  void dynamic_call(ErlNifEnv* /*env*/, void* call_data) {
+    DyncallData* data = static_cast<DyncallData*>(call_data);
+    switch (data->op) {
+    case '+': data->res = data->x + data->y; break;
+    case '-': data->res = data->x - data->y; break;
+    case '*': data->res = data->x * data->y; break;
+    case '/': data->res = data->y ? data->x / data->y : 0; break;
+    default:
+        data->res = 0;
+        break;
+    }
+  }
 };
 FINE_RESOURCE(TestResource);
+static_assert(fine::ResourcePtr<TestResource>::has_destructor);
+static_assert(fine::ResourcePtr<TestResource>::has_select_stop);
+static_assert(fine::ResourcePtr<TestResource>::has_monitor_down);
+static_assert(fine::ResourcePtr<TestResource>::has_dynamic_call);
 
 struct ExPoint {
   int64_t x;
@@ -356,6 +454,62 @@ fine::Term resource_binary(ErlNifEnv *env,
                                     resource->binary.size());
 }
 FINE_NIF(resource_binary, 0);
+
+fine::Term resource_monitor_process(ErlNifEnv* env, fine::ResourcePtr<TestResource> obj, ErlNifPid mon_pid) {
+  ErlNifMonitor mon;
+  int error = enif_monitor_process(env, obj.get(), &mon_pid, &mon);
+  if (error) {
+    return fine::encode(env, atoms::nil);
+  } else {
+    return enif_make_monitor_term(env, &mon);
+  }
+}
+FINE_NIF(resource_monitor_process, 0);
+
+fine::Term resource_select_stop(ErlNifEnv* env, fine::ResourcePtr<TestResource> obj) {
+  ErlNifEvent event = create_test_event();
+  if (!is_valid_test_event(event)) {
+      return fine::encode(env, fine::Error(std::string_view{"create_test_event"}));
+  }
+  int rc = enif_select(env,
+                       event,
+                       // **BEWARE**
+                       // ERL_NIF_SELECT_STOP operation requires a registered stop callback.
+                       // OTP’s implementation only verifies this with:
+                       //   ASSERT(resource->type->fn.stop);
+                       // In a release BEAM, that assertion is compiled out.
+                       // OTP subsequently invokes the null callback,
+                       // causing the segmentation fault rather than returning an error.
+                       // This is an API precondition violation inside native code,
+                       // so BEAM cannot safely turn it into an Elixir exception.
+                       ERL_NIF_SELECT_STOP,
+                       obj.get(),
+                       &obj->pid,
+                       fine::encode(env, atoms::undefined)
+                      );
+  if (rc < 0) {
+    return fine::encode(env, fine::Error(std::make_tuple(std::string_view("enif_select"), int64_t(rc))));
+  }
+  return fine::encode(env, fine::Ok(test_event_id(event)));
+}
+FINE_NIF(resource_select_stop, 0);
+
+fine::Term resource_dyncall_op(ErlNifEnv* env, fine::Term resource, int64_t op, int64_t x, int64_t y) {
+  auto data = TestResource::DyncallData{op, x, y, 0};
+  int rc = enif_dynamic_resource_call(env,
+                                      fine::encode(env, atoms::ElixirFinestNIF),
+                                      fine::encode(env, atoms::TestResource),
+                                      resource,
+                                      &data
+                                     );
+  if (rc == 0) {
+    return fine::encode(env, fine::Ok(data.res));
+  }
+  else {
+    return fine::encode(env, atoms::error);
+  }
+}
+FINE_NIF(resource_dyncall_op, 0);
 
 fine::Term make_new_binary(ErlNifEnv *env) {
   const char *buffer = "hello world";
