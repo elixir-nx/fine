@@ -967,7 +967,7 @@ struct Decoder<T, std::void_t<decltype(T::module), decltype(T::fields)>> {
     if (error) {
       return std::move(*error);
     }
-    return std::move(ex_struct);
+    return ex_struct;
   }
 
 private:
