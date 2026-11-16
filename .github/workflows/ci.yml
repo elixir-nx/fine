@@ -31,7 +31,7 @@ jobs:
         os:
           - { name: "Linux", id: "ubuntu-24.04" }
           - { name: "Windows", id: "windows-2022" }
-          - { name: "macOS", id: "macos-14" }
+          - { name: "macOS", id: "macos-15" }
         pair:
           - { elixir: "1.15.8", otp: "25.3" }
           - { elixir: "1.19.5", otp: "28.4" }
