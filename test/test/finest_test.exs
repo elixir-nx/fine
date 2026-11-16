@@ -422,6 +422,43 @@ defmodule FinestTest do
 
       assert_receive :destructor_default
     end
+
+    test "resource monitors a process" do
+      resource = NIF.resource_create(self())
+
+      pid =
+        spawn(fn ->
+          receive do
+            :stop -> :ok
+          end
+        end)
+
+      assert mon = NIF.resource_monitor_process(resource, pid)
+      send(pid, :stop)
+      assert_receive {:down, ^mon, ^pid}, 1_000
+      assert NIF.resource_get(resource) == self()
+    end
+
+    test "resource select_stop()" do
+      resource = NIF.resource_create(self())
+      assert {:ok, event_id} = NIF.resource_select_stop(resource)
+      assert_receive {:ok, {^event_id, true}}
+    end
+
+    test "resource dynamic_call" do
+      resource = NIF.resource_create(self())
+      assert {:ok, 5} = NIF.resource_dyncall_op(resource, ?+, 2, 3)
+      assert {:ok, 6} = NIF.resource_dyncall_op(resource, ?*, 2, 3)
+      assert {:ok, -1} = NIF.resource_dyncall_op(resource, ?-, 2, 3)
+      assert {:ok, 0} = NIF.resource_dyncall_op(resource, ?/, 2, 3)
+      assert {:ok, 2} = NIF.resource_dyncall_op(resource, ?/, 8, 3)
+      # :-)
+      assert {:ok, 0} = NIF.resource_dyncall_op(resource, ?/, 8, 0)
+      # NOP
+      assert {:ok, 0} = NIF.resource_dyncall_op(resource, ?X, 2, 3)
+      assert :error = NIF.resource_dyncall_op("no-resource", ?+, 2, 2)
+      assert :error = NIF.resource_dyncall_op(make_ref(), ?+, 2, 2)
+    end
   end
 
   describe "make_new_binary" do

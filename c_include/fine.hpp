@@ -291,6 +291,22 @@ template <typename T> struct ResourceWrapper {
   T resource;
   bool initialized;
 
+  static ErlNifResourceTypeInit resource_type_init() {
+    ErlNifResourceStop *cb_stop = nullptr;
+    if constexpr (has_select_stop<T>::value) {
+      cb_stop = stop;
+    }
+    ErlNifResourceDown *cb_down = nullptr;
+    if constexpr (has_monitor_down<T>::value) {
+      cb_down = down;
+    }
+    ErlNifResourceDynCall *cb_dyncall = nullptr;
+    if constexpr (has_dynamic_call<T>::value) {
+      cb_dyncall = dyncall;
+    }
+    return ErlNifResourceTypeInit{dtor, cb_stop, cb_down, 4, cb_dyncall};
+  }
+
   static void dtor(ErlNifEnv *env, void *ptr) {
     auto resource_wrapper = reinterpret_cast<ResourceWrapper<T> *>(ptr);
 
@@ -310,6 +326,65 @@ template <typename T> struct ResourceWrapper {
       U,
       typename std::enable_if<std::is_same<
           decltype(std::declval<U>().destructor(std::declval<ErlNifEnv *>())),
+          void>::value>::type> : std::true_type {};
+
+  static void stop(ErlNifEnv *env, void *ptr, ErlNifEvent event, int is_direct_call) {
+    auto resource_wrapper = reinterpret_cast<ResourceWrapper<T> *>(ptr);
+
+    if (resource_wrapper->initialized) {
+      resource_wrapper->resource.select_stop(env, event, (is_direct_call != 0));
+    }
+  }
+
+  template <typename U, typename = void>
+  struct has_select_stop : std::false_type {};
+
+  template <typename U>
+  struct has_select_stop<
+      U,
+      typename std::enable_if<std::is_same<
+          decltype(std::declval<U>().select_stop(std::declval<ErlNifEnv *>(),
+                                                 std::declval<ErlNifEvent>(),
+                                                 std::declval<bool>())),
+          void>::value>::type> : std::true_type {};
+
+  static void down(ErlNifEnv *env, void *ptr, ErlNifPid *pid, ErlNifMonitor *mon) {
+    auto resource_wrapper = reinterpret_cast<ResourceWrapper<T> *>(ptr);
+
+    if (resource_wrapper->initialized) {
+      resource_wrapper->resource.monitor_down(env, *pid, *mon);
+    }
+  }
+
+  template <typename U, typename = void>
+  struct has_monitor_down : std::false_type {};
+
+  template <typename U>
+  struct has_monitor_down<
+      U,
+      typename std::enable_if<std::is_same<
+          decltype(std::declval<U>().monitor_down(std::declval<ErlNifEnv *>(),
+                                                  std::declval<const ErlNifPid &>(),
+                                                  std::declval<const ErlNifMonitor &>())),
+          void>::value>::type> : std::true_type {};
+
+  static void dyncall(ErlNifEnv *env, void *ptr , void *call_data) {
+    auto resource_wrapper = reinterpret_cast<ResourceWrapper<T> *>(ptr);
+
+    if (resource_wrapper->initialized) {
+      resource_wrapper->resource.dynamic_call(env, call_data);
+    }
+  }
+
+  template <typename U, typename = void>
+  struct has_dynamic_call : std::false_type {};
+
+  template <typename U>
+  struct has_dynamic_call<
+      U,
+      typename std::enable_if<std::is_same<
+          decltype(std::declval<U>().dynamic_call(std::declval<ErlNifEnv *>(),
+                                                  std::declval<void *>())),
           void>::value>::type> : std::true_type {};
 };
 } // namespace __private__
@@ -1362,7 +1437,7 @@ public:
   static Registration register_resource(const char *name) {
     Registration::resources.push_back({&fine::ResourcePtr<T>::resource_type,
                                        name,
-                                       __private__::ResourceWrapper<T>::dtor});
+                                       __private__::ResourceWrapper<T>::resource_type_init()});
     return {};
   }
 
@@ -1393,10 +1468,10 @@ public:
 
 private:
   static bool init_resources(ErlNifEnv *env) {
-    for (const auto &[resource_type_ptr, name, dtor] :
+    for (const auto &[resource_type_ptr, name, init] :
          Registration::resources) {
       auto flags = ERL_NIF_RT_CREATE;
-      auto type = enif_open_resource_type(env, NULL, name, dtor, flags, NULL);
+      auto type = enif_init_resource_type(env, name, &init, flags, NULL);
 
       if (type) {
         *resource_type_ptr = type;
@@ -1417,7 +1492,7 @@ private:
   friend bool __private__::init_resources(ErlNifEnv *env);
 
   inline static std::vector<std::tuple<ErlNifResourceType **, const char *,
-                                       void (*)(ErlNifEnv *, void *)>>
+                                       ErlNifResourceTypeInit>>
       resources = {};
 
   inline static std::vector<ErlNifFunc> erl_nif_funcs = {};

@@ -294,6 +294,8 @@ FINE_NIF(random_integer, 0);
 FINE_INIT("Elixir.MyLib.NIF");
 ```
 
+### Destructor
+
 Once neither Elixir nor C++ holds a reference to the resource object,
 it gets destroyed. By default only the `T` type destructor is called.
 However, in some cases you may want to interact with NIF APIs as part
@@ -303,8 +305,10 @@ callback on `T`, which receives the relevant `ErlNifEnv`:
 ```c++
 class Generator {
   // ...
+public:
 
   void destructor(ErlNifEnv *env) {
+    // Perform final cleanup that requires a NIF environment.
     // Example: send a message to some process using env
   }
 };
@@ -319,6 +323,38 @@ add callbacks such as `destructor` to the implementation. If you run
 into any of these limitations, you can define your own wrapper class,
 holding an object of the third-party class and implementing the desired
 construction/destruction on top.
+
+### Callbacks
+
+Other resource callbacks are also supported, corresponding to the members
+of [`ErlNifResourceTypeInit`](https://www.erlang.org/doc/apps/erts/erl_nif.html#ErlNifResourceTypeInit). The callbacks are optional and
+they are registered only when defined:
+
+```c++
+class Generator {
+  // ...
+public:
+
+  void destructor(ErlNifEnv *env) {
+    // Perform final cleanup that requires a NIF environment.
+    // Example: send a message to some process using env
+  }
+
+  void select_stop(ErlNifEnv *env, ErlNifEvent event, bool direct_call) {
+    // Handle enif_select stopping selection of event.
+  }
+
+  void monitor_down(ErlNifEnv *env, ErlNifPid pid, const ErlNifMonitor &monitor) {
+    // Handle termination of a process monitored by this resource.
+  }
+
+  void dynamic_call(ErlNifEnv *env, void *call_data) {
+    // Handle a call made with enif_dynamic_resource_call.
+  }
+};
+```
+
+### Resource binaries
 
 You can use `fine::make_resource_binary(env, resource, data, size)`
 to create a binary term with memory managed by the resource.
