@@ -294,23 +294,41 @@ FINE_NIF(random_integer, 0);
 FINE_INIT("Elixir.MyLib.NIF");
 ```
 
+### Destructor
+
 Once neither Elixir nor C++ holds a reference to the resource object,
 it gets destroyed. By default only the `T` type destructor is called.
 However, in some cases you may want to interact with NIF APIs as part
 of the destructor. In that case, you can implement a `destructor`
 callback on `T`, which receives the relevant `ErlNifEnv`:
 
-Fine resource callbacks correspond to members of
-[`ErlNifResourceTypeInit`](https://www.erlang.org/doc/apps/erts/erl_nif.html#ErlNifResourceTypeInit):
+```c++
+class Generator {
+  // ...
+public:
 
-| Fine callback  | `ErlNifResourceTypeInit` member |
-| -------------- | ------------------------------- |
-| `destructor`   | `dtor`                          |
-| `select_stop`  | `stop`                          |
-| `monitor_down` | `down`                          |
-| `dynamic_call` | `dyncall`                       |
+  void destructor(ErlNifEnv *env) {
+    // Perform final cleanup that requires a NIF environment.
+    // Example: send a message to some process using env
+  }
+};
+```
 
-Callbacks are optional and are recognized from their prototypes:
+If defined, the `destructor` callback is called first, and then the
+`T` destructor is called as usual.
+
+Oftentimes NIFs deal with classes from third-party packages, in which
+case, you may not control how the objects are created and you cannot
+add callbacks such as `destructor` to the implementation. If you run
+into any of these limitations, you can define your own wrapper class,
+holding an object of the third-party class and implementing the desired
+construction/destruction on top.
+
+### Callbacks
+
+Other resource callbacks are also supported, corresponding to the members
+of [`ErlNifResourceTypeInit`](https://www.erlang.org/doc/apps/erts/erl_nif.html#ErlNifResourceTypeInit). The callbacks are optional and
+they are registered only when defined:
 
 ```c++
 class Generator {
@@ -336,21 +354,7 @@ public:
 };
 ```
 
-`ResourcePtr<T>` exposes a compile-time detection flag for each callback, as shown above.
-These flags can be used with `static_assert` to enforce required callbacks.
-For example, using `ERL_NIF_SELECT_STOP` without a recognized `select_stop` callback
-violates an NIF API precondition and may crash the BEAM: in release builds,
-the relevant assertion is compiled out, potentially resulting in a null function-pointer call.
-
-If defined, the `destructor` callback is called first, and then the
-`T` destructor is called as usual.
-
-Oftentimes NIFs deal with classes from third-party packages, in which
-case, you may not control how the objects are created and you cannot
-add callbacks such as `destructor` to the implementation. If you run
-into any of these limitations, you can define your own wrapper class,
-holding an object of the third-party class and implementing the desired
-construction/destruction on top.
+### Resource binaries
 
 You can use `fine::make_resource_binary(env, resource, data, size)`
 to create a binary term with memory managed by the resource.
