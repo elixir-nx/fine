@@ -12,7 +12,7 @@ defmodule FinestTest do
       assert NIF.try_decode_int64(42) == {:ok, 42}
 
       assert NIF.try_decode_int64(:hello) ==
-               {:error, "decode failed, expected an integer, got: hello"}
+               {:error, "decode failed, expected int64_t, got: hello"}
     end
 
     test "propagates allocation errors instead of trying another alternative" do
@@ -29,11 +29,110 @@ defmodule FinestTest do
       assert NIF.codec_term([1, 2, 3]) == [1, 2, 3]
     end
 
+    test "int8" do
+      assert NIF.codec_int8(10) == 10
+      assert NIF.codec_int8(-10) == -10
+
+      assert_raise ArgumentError, "decode failed, expected int8_t, got: 128", fn ->
+        NIF.codec_int8(0x80)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected int8_t, got: -129", fn ->
+        NIF.codec_int8(-0x80 - 1)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected int8_t, got: 1.000000e+01", fn ->
+        NIF.codec_int8(10.0)
+      end
+    end
+
+    test "uint8" do
+      assert NIF.codec_uint8(10)
+
+      assert_raise ArgumentError, "decode failed, expected uint8_t, got: 256", fn ->
+        NIF.codec_uint8(0xFF + 1)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected uint8_t, got: -10", fn ->
+        NIF.codec_uint8(-10)
+      end
+    end
+
+    test "int16" do
+      assert NIF.codec_int16(10) == 10
+      assert NIF.codec_int16(-10) == -10
+
+      assert_raise ArgumentError, "decode failed, expected int16_t, got: 32768", fn ->
+        NIF.codec_int16(0x8000)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected int16_t, got: -32769", fn ->
+        NIF.codec_int16(-0x8000 - 1)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected int16_t, got: 1.000000e+01", fn ->
+        NIF.codec_int16(10.0)
+      end
+    end
+
+    test "uint16" do
+      assert NIF.codec_uint16(10)
+
+      assert_raise ArgumentError, "decode failed, expected uint16_t, got: 65536", fn ->
+        NIF.codec_uint16(0xFFFF + 1)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected uint16_t, got: -10", fn ->
+        NIF.codec_uint16(-10)
+      end
+    end
+
+    test "int32" do
+      assert NIF.codec_int32(10) == 10
+      assert NIF.codec_int32(-10) == -10
+
+      assert_raise ArgumentError, "decode failed, expected int32_t, got: 2147483648", fn ->
+        NIF.codec_int32(0x8000_0000)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected int32_t, got: -2147483649", fn ->
+        NIF.codec_int32(-0x8000_0000 - 1)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected int32_t, got: 1.000000e+01", fn ->
+        NIF.codec_int32(10.0)
+      end
+    end
+
+    test "uint32" do
+      assert NIF.codec_uint32(10)
+
+      assert_raise ArgumentError, "decode failed, expected uint32_t, got: 4294967296", fn ->
+        NIF.codec_uint32(0xFFFF_FFFF + 1)
+      end
+
+      assert_raise ArgumentError, "decode failed, expected uint32_t, got: -10", fn ->
+        NIF.codec_uint32(-10)
+      end
+    end
+
     test "int64" do
       assert NIF.codec_int64(10) == 10
       assert NIF.codec_int64(-10) == -10
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: 1.000000e+01", fn ->
+      assert_raise ArgumentError,
+                   "decode failed, expected int64_t, got: 9223372036854775808",
+                   fn ->
+                     NIF.codec_int64(0x8000_0000_0000_0000)
+                   end
+
+      assert_raise ArgumentError,
+                   "decode failed, expected int64_t, got: -9223372036854775809",
+                   fn ->
+                     NIF.codec_int64(-0x8000_0000_0000_0000 - 1)
+                   end
+
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: 1.000000e+01", fn ->
         NIF.codec_int64(10.0)
       end
     end
@@ -41,7 +140,13 @@ defmodule FinestTest do
     test "uint64" do
       assert NIF.codec_uint64(10)
 
-      assert_raise ArgumentError, "decode failed, expected an unsigned integer, got: -10", fn ->
+      assert_raise ArgumentError,
+                   "decode failed, expected uint64_t, got: 18446744073709551616",
+                   fn ->
+                     NIF.codec_uint64(0xFFFF_FFFF_FFFF_FFFF + 1)
+                   end
+
+      assert_raise ArgumentError, "decode failed, expected uint64_t, got: -10", fn ->
         NIF.codec_uint64(-10)
       end
     end
@@ -127,7 +232,7 @@ defmodule FinestTest do
       assert NIF.codec_optional_int64(10) == 10
       assert NIF.codec_optional_int64(nil) == nil
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: 1.000000e+01", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: 1.000000e+01", fn ->
         NIF.codec_optional_int64(10.0)
       end
     end
@@ -173,7 +278,7 @@ defmodule FinestTest do
         NIF.codec_vector_int64(10)
       end
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: 1.000000e+01", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: 1.000000e+01", fn ->
         NIF.codec_vector_int64([10.0])
       end
     end
@@ -235,19 +340,19 @@ defmodule FinestTest do
 
       map_with_invalid_value = %{hello: :world}
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: world", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: world", fn ->
         NIF.codec_map_atom_int64(map_with_invalid_value)
       end
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: world", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: world", fn ->
         NIF.codec_map_atom_int64_alloc(map_with_invalid_value)
       end
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: world", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: world", fn ->
         NIF.codec_unordered_map_atom_int64(map_with_invalid_value)
       end
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: world", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: world", fn ->
         NIF.codec_unordered_map_atom_int64_alloc(map_with_invalid_value)
       end
     end
@@ -307,19 +412,19 @@ defmodule FinestTest do
 
       keyword_with_invalid_value = [hello: 1.0]
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: 1.000000e+00", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: 1.000000e+00", fn ->
         NIF.codec_multimap_atom_int64(keyword_with_invalid_value)
       end
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: 1.000000e+00", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: 1.000000e+00", fn ->
         NIF.codec_multimap_atom_int64_alloc(keyword_with_invalid_value)
       end
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: 1.000000e+00", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: 1.000000e+00", fn ->
         NIF.codec_unordered_multimap_atom_int64(keyword_with_invalid_value)
       end
 
-      assert_raise ArgumentError, "decode failed, expected an integer, got: 1.000000e+00", fn ->
+      assert_raise ArgumentError, "decode failed, expected int64_t, got: 1.000000e+00", fn ->
         NIF.codec_unordered_multimap_atom_int64_alloc(keyword_with_invalid_value)
       end
     end
@@ -354,7 +459,7 @@ defmodule FinestTest do
                    end
 
       assert_raise ArgumentError,
-                   ~s(decode failed, expected an integer, got: <<"invalid">>),
+                   ~s(decode failed, expected int64_t, got: <<"invalid">>),
                    fn ->
                      NIF.codec_struct(%Finest.Point{x: "invalid", y: 2})
                    end

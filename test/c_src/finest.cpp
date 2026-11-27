@@ -209,6 +209,24 @@ FINE_NIF(add, 0);
 fine::Term codec_term(ErlNifEnv *, fine::Term term) { return term; }
 FINE_NIF(codec_term, 0);
 
+int8_t codec_int8(ErlNifEnv *, int8_t term) { return term; }
+FINE_NIF(codec_int8, 0);
+
+uint8_t codec_uint8(ErlNifEnv *, uint8_t term) { return term; }
+FINE_NIF(codec_uint8, 0);
+
+int16_t codec_int16(ErlNifEnv *, int16_t term) { return term; }
+FINE_NIF(codec_int16, 0);
+
+uint16_t codec_uint16(ErlNifEnv *, uint16_t term) { return term; }
+FINE_NIF(codec_uint16, 0);
+
+int32_t codec_int32(ErlNifEnv *, int32_t term) { return term; }
+FINE_NIF(codec_int32, 0);
+
+uint32_t codec_uint32(ErlNifEnv *, uint32_t term) { return term; }
+FINE_NIF(codec_uint32, 0);
+
 int64_t codec_int64(ErlNifEnv *, int64_t term) { return term; }
 FINE_NIF(codec_int64, 0);
 
