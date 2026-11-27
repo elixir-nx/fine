@@ -18,6 +18,12 @@ defmodule Finest.NIF do
   def add(_x, _y), do: err!()
 
   def codec_term(_term), do: err!()
+  def codec_int8(_term), do: err!()
+  def codec_uint8(_term), do: err!()
+  def codec_int16(_term), do: err!()
+  def codec_uint16(_term), do: err!()
+  def codec_int32(_term), do: err!()
+  def codec_uint32(_term), do: err!()
   def codec_int64(_term), do: err!()
   def codec_uint64(_term), do: err!()
   def codec_double(_term), do: err!()

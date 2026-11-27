@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -597,13 +598,81 @@ template <> struct Decoder<Term> {
   }
 };
 
+template <> struct Decoder<int8_t> {
+  static DecodeResult<int8_t> try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    int integer;
+    if (!enif_get_int(env, term, &integer) ||
+        integer < std::numeric_limits<int8_t>::min() ||
+        integer > std::numeric_limits<int8_t>::max()) {
+      return DecodeError{"decode failed, expected int8_t", term};
+    }
+    return static_cast<int8_t>(integer);
+  }
+};
+
+template <> struct Decoder<uint8_t> {
+  static DecodeResult<uint8_t> try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    unsigned integer;
+    if (!enif_get_uint(env, term, &integer) ||
+        integer > std::numeric_limits<uint8_t>::max()) {
+      return DecodeError{"decode failed, expected uint8_t", term};
+    }
+    return static_cast<uint8_t>(integer);
+  }
+};
+
+template <> struct Decoder<int16_t> {
+  static DecodeResult<int16_t> try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    int integer;
+    if (!enif_get_int(env, term, &integer) ||
+        integer < std::numeric_limits<int16_t>::min() ||
+        integer > std::numeric_limits<int16_t>::max()) {
+      return DecodeError{"decode failed, expected int16_t", term};
+    }
+    return static_cast<int16_t>(integer);
+  }
+};
+
+template <> struct Decoder<uint16_t> {
+  static DecodeResult<uint16_t> try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    unsigned integer;
+    if (!enif_get_uint(env, term, &integer) ||
+        integer > std::numeric_limits<uint16_t>::max()) {
+      return DecodeError{"decode failed, expected uint16_t", term};
+    }
+    return static_cast<uint16_t>(integer);
+  }
+};
+
+template <> struct Decoder<int> {
+  static DecodeResult<int> try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    static_assert(std::numeric_limits<int>::digits == 31);
+    int integer;
+    if (!enif_get_int(env, term, &integer)) {
+      return DecodeError{"decode failed, expected int32_t", term};
+    }
+    return integer;
+  }
+};
+
+template <> struct Decoder<unsigned> {
+  static DecodeResult<unsigned> try_decode(ErlNifEnv *env, const ERL_NIF_TERM &term) {
+    static_assert(std::numeric_limits<unsigned>::digits == 32);
+    unsigned integer;
+    if (!enif_get_uint(env, term, &integer)) {
+      return DecodeError{"decode failed, expected uint32_t", term};
+    }
+    return integer;
+  }
+};
+
 template <> struct Decoder<int64_t> {
   static DecodeResult<int64_t> try_decode(ErlNifEnv *env,
                                           const ERL_NIF_TERM &term) {
     int64_t integer;
     if (!enif_get_int64(env, term,
                         reinterpret_cast<ErlNifSInt64 *>(&integer))) {
-      return DecodeError{"decode failed, expected an integer", term};
+      return DecodeError{"decode failed, expected int64_t", term};
     }
     return integer;
   }
@@ -615,7 +684,7 @@ template <> struct Decoder<uint64_t> {
     uint64_t integer;
     if (!enif_get_uint64(env, term,
                          reinterpret_cast<ErlNifUInt64 *>(&integer))) {
-      return DecodeError{"decode failed, expected an unsigned integer", term};
+      return DecodeError{"decode failed, expected uint64_t", term};
     }
     return integer;
   }
@@ -1070,6 +1139,42 @@ private:
 
 template <> struct Encoder<Term> {
   static ERL_NIF_TERM encode(ErlNifEnv *, const Term &term) { return term; }
+};
+
+template <> struct Encoder<int8_t> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const int8_t &integer) {
+    return enif_make_int(env, integer);
+  }
+};
+
+template <> struct Encoder<uint8_t> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const uint8_t &integer) {
+    return enif_make_uint(env, integer);
+  }
+};
+
+template <> struct Encoder<int16_t> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const int16_t &integer) {
+    return enif_make_int(env, integer);
+  }
+};
+
+template <> struct Encoder<uint16_t> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const uint16_t &integer) {
+    return enif_make_uint(env, integer);
+  }
+};
+
+template <> struct Encoder<int> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const int &integer) {
+    return enif_make_int(env, integer);
+  }
+};
+
+template <> struct Encoder<unsigned> {
+  static ERL_NIF_TERM encode(ErlNifEnv *env, const unsigned &integer) {
+    return enif_make_uint(env, integer);
+  }
 };
 
 template <> struct Encoder<int64_t> {

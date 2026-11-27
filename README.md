@@ -153,8 +153,8 @@ Fine provides implementations for the following types:
 | C++ Type                             | Encoder | Decoder | Elixir Type                 |
 | ------------------------------------ | ------- | ------- | --------------------------- |
 | `fine::Term`                         | x       | x       | `term`                      |
-| `int64_t`                            | x       | x       | `integer`                   |
-| `uint64_t`                           | x       | x       | `non_neg_integer`           |
+| `int8_t` .. `int64_t`                | x       | x       | `integer`                   |
+| `uint8_t` .. `uint64_t`              | x       | x       | `non_neg_integer`           |
 | `double`                             | x       | x       | `float`                     |
 | `bool`                               | x       | x       | `boolean`                   |
 | `ErlNifPid`                          | x       | x       | `pid`                       |
